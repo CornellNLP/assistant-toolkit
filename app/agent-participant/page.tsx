@@ -149,10 +149,10 @@ function PromptBlockLegend({
   )
 }
 
-function makeDefaultTemplate(userEmail: string | null): AgentTemplate {
-  const idBase = userEmail ? userEmail.split('@')[0] : 'toolkit'
+// persona.id is a placeholder: saving sets it to the saved agent's id.
+function makeDefaultTemplate(): AgentTemplate {
   return {
-    persona: { id: `${idBase}-agent`, name: 'Agent', avatar: '🤖', pronouns: 'they/them', character: '' },
+    persona: { id: 'agent', name: 'Agent', avatar: '🤖', pronouns: 'they/them', character: '' },
     model: { apiType: 'GEMINI', modelName: 'gemini-3-flash-preview' },
     generation: { temperature: 0.7, reasoningLevel: 'off', includeReasoning: false },
     chatSettings: {
@@ -191,19 +191,19 @@ export default function AgentParticipantsPage() {
   // Seeded synchronously so the prompt editor always has something to show
   // and edit immediately, instead of waiting on the save system's network
   // round trip (which the editor should not depend on to be usable).
-  const [agentData, setAgentData] = useState<string | null>(() => JSON.stringify(makeDefaultTemplate(null), null, 2))
+  const [agentData, setAgentData] = useState<string | null>(() => JSON.stringify(makeDefaultTemplate(), null, 2))
   const [dirty, setDirty] = useState(false)
 
   const [activePromptType, setActivePromptType] = useState<'message' | 'initialization' | 'character' | 'thought'>('message')
   const [activeMessageName, setActiveMessageName] = useState<string | null>(
-    () => Object.keys(makeDefaultTemplate(null).chatSettings.promptMap)[0] ?? null,
+    () => Object.keys(makeDefaultTemplate().chatSettings.promptMap)[0] ?? null,
   )
   const [editingName, setEditingName] = useState<string | null>(null)
   const [draftName, setDraftName] = useState('')
 
   const getDefaultContent = useCallback(async () => {
-    return JSON.stringify(makeDefaultTemplate(userEmail), null, 2)
-  }, [userEmail])
+    return JSON.stringify(makeDefaultTemplate(), null, 2)
+  }, [])
 
   async function fetchQuota() {
     try {

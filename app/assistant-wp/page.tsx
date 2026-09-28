@@ -122,11 +122,11 @@ export default function AssistantPage() {
   }
 
   const getDefaultContent = useCallback(async () => {
+    // persona.id is left as the file has it: saving sets it to the saved
+    // assistant's id.
     const defaultsText = await fetch(`${API_BASE}/templates/wikipedia/assistant.yaml`).then(res => res.text())
-    const parsed = yaml.load(defaultsText) as { persona: { id: string } }
-    if (userEmail) parsed.persona.id = `${userEmail.split('@')[0]}-assistant`
-    return JSON.stringify(parsed, null, 2)
-  }, [userEmail])
+    return JSON.stringify(yaml.load(defaultsText), null, 2)
+  }, [])
 
   useEffect(() => {
     return onAuthStateChanged(auth, (user) => {

@@ -106,9 +106,12 @@ export function useSimulationBlocks() {
   const [error, setError] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
-    const token = await auth.currentUser?.getIdToken()
-    if (!token) return
     try {
+      // Inside the try: getIdToken throws when the token can't be refreshed
+      // (offline, or the auth emulator isn't running), and that should surface
+      // as `error` rather than as an unhandled rejection.
+      const token = await auth.currentUser?.getIdToken()
+      if (!token) return
       const res = await fetch(`${API_BASE}/api/simulations`, { headers: { Authorization: `Bearer ${token}` } })
       if (!res.ok) {
         const body = await res.json().catch(() => ({}))
@@ -173,9 +176,9 @@ export function useSimulationBlocks() {
     if (!selectedId) { setBlocks([]); return }
     let cancelled = false
     ;(async () => {
-      const token = await auth.currentUser?.getIdToken()
-      if (!token) return
       try {
+        const token = await auth.currentUser?.getIdToken()
+        if (!token || cancelled) return
         const res = await fetch(`${API_BASE}/api/simulations/load?id=${encodeURIComponent(selectedId)}`, {
           headers: { Authorization: `Bearer ${token}` },
         })

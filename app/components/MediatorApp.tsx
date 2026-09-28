@@ -18,7 +18,7 @@ import { create } from 'domain'
 import { StructuredOutputSchema, type StructuredOutputConfig } from '../components/StructuredOutputSchema'
 import { startTour } from '../lib/tour'
 import { SimulationBlockPicker } from './SimulationBlockPicker'
-import { useSimulationBlocks, describeBlock, type Block } from '../lib/blocks'
+import { useSimulationBlocks, type Block } from '../lib/blocks'
 import { text } from 'stream/consumers'
 import { TOPIC_SETS } from '../lib/topicSets'
 
@@ -92,8 +92,8 @@ function PromptBlockLegend({ textOnly, simulationBlocks = [], usingDefaultBlocks
         ) : (
           simulationBlocks.map(block => (
             <Fragment key={block.name}>
-              {legend('bg-[#e6dcfd]', `${block.name} (Simulation Block)`)}
-              <span>{describeBlock(block)}</span>
+              {legend('bg-[#e6dcfd]', `${block.name} (Custom Block)`)}
+              <span>Block defined in the Simulation panel</span>
             </Fragment>
           ))
         )}

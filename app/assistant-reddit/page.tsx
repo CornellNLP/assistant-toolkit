@@ -13,7 +13,7 @@ import { Nav } from '../components/Nav'
 import { SaveSection } from '../components/SaveSection'
 import { YamlIOSection } from '../components/YamlIOSection'
 import { SimulationBlockPicker } from '../components/SimulationBlockPicker'
-import { useSimulationBlocks, describeBlock, type Block } from '../lib/blocks'
+import { useSimulationBlocks, type Block } from '../lib/blocks'
 import { CMV_POSTS } from './topics'
 
 const idle: ActionState = { status: 'idle', result: null }
@@ -62,8 +62,8 @@ function PromptBlockLegend({ simulationBlocks = [], usingDefaultBlocks }: {
         ) : (
           simulationBlocks.map(block => (
             <Fragment key={block.name}>
-              {legend('bg-[#e6dcfd]', `${block.name} (Simulation Block)`)}
-              <span>{describeBlock(block)}</span>
+              {legend('bg-[#e6dcfd]', `${block.name} (Custom Block)`)}
+              <span>Block defined in the Simulation panel</span>
             </Fragment>
           ))
         )}

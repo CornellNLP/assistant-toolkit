@@ -4,6 +4,11 @@ import { useEffect, useRef, useState } from 'react'
 import { auth } from '../lib/firebase'
 import { API_BASE } from '../lib/config'
 import { TemplateNameModal } from './TemplateNameModal'
+import { readDraft, writeDraft } from '../lib/drafts'
+
+// What survives navigating away: which template was open, plus its unsaved
+// content when there is any.
+type SaveSectionDraft = { activeId: string; content: string | null }
 
 export type SavedTemplateItem = { id: string; name: string; updatedAt: string | null }
 
@@ -36,10 +41,18 @@ export function SaveSection({
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showRenameModal, setShowRenameModal] = useState(false)
   const bootstrapped = useRef(false)
+  const draftScope = `template:${collection}`
 
   const isDirty = content !== null && content !== lastSavedContent
 
   useEffect(() => { onDirtyChange?.(isDirty) }, [isDirty])
+
+  // Keep the open template and any unsaved edits in the draft, so coming back
+  // to this page picks up exactly where it was left.
+  useEffect(() => {
+    if (!activeId) return
+    writeDraft<SaveSectionDraft>(draftScope, { activeId, content: isDirty ? content : null })
+  }, [draftScope, activeId, content, isDirty])
   useEffect(() => { if (isDirty) setShowSaveAlert(false) }, [isDirty])
 
   async function authHeader(): Promise<Record<string, string> | null> {
@@ -87,9 +100,15 @@ export function SaveSection({
           }
         } else {
           setItems(list)
-          const mostRecent = list[0]
-          const loaded = await loadItem(mostRecent.id, headers)
-          if (loaded) applyActive(loaded.id, loaded.name, loaded.content)
+          // Reopen the template from the draft if it still exists, otherwise
+          // the most recently updated one.
+          const draft = readDraft<SaveSectionDraft>(draftScope)
+          const target = list.find(it => it.id === draft?.activeId) ?? list[0]
+          const loaded = await loadItem(target.id, headers)
+          if (loaded) {
+            applyActive(loaded.id, loaded.name, loaded.content)
+            if (draft?.activeId === loaded.id && draft.content !== null) onContentChange(draft.content)
+          }
         }
       } finally {
         setLoading(false)

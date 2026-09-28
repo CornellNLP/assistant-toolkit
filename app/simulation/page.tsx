@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { onAuthStateChanged, signOut } from 'firebase/auth'
 import { auth } from '../lib/firebase'
@@ -9,7 +9,8 @@ import * as yaml from 'js-yaml'
 import { Nav } from '../components/Nav'
 import { PairingsEditor, newPairingId, normalizeMembers, summarizePairing, mediatorMember, type Pairing } from '../components/PairingsEditor'
 import { BlockCustomization, DEFAULT_BLOCKS, type Block } from '../components/BlockCustomization'
-import { normalizeBlock } from '../lib/blocks'
+import { normalizeBlock, announceSimulationSaved } from '../lib/blocks'
+import { readDraft, writeDraft } from '../lib/drafts'
 import { ActionButton, ResultBox, type ActionState } from '../components/ExperimentActions'
 import { useSavedAgents } from '../lib/agents'
 import { useSavedMediators } from '../lib/mediators'
@@ -29,6 +30,16 @@ const DEFAULT_SIMULATION = {
 type SimRun = { experiment: string; repeats: string }
 
 const EMPTY_RUN: SimRun = { experiment: '', repeats: '1' }
+
+// What survives navigating away from this page: which saved simulation was
+// open (null for one never saved), plus the unsaved edits on top of it.
+type SimulationDraft = {
+  lastSavedName: string | null
+  simulationData: string | null
+  templateName: string
+  runs: SimRun[]
+}
+const DRAFT_SCOPE = 'simulation'
 
 // How many times a single experiment may be run.
 const MAX_RUNS = 5
@@ -160,6 +171,8 @@ export default function SimulationPage() {
   const [lastSavedName, setLastSavedName] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [showSaveAlert, setShowSaveAlert] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
 
   const [simulationData, setSimulationData] = useState<string | null>(null)
   const [showAsYaml, setShowAsYaml] = useState(false)
@@ -187,16 +200,41 @@ export default function SimulationPage() {
   )
   const blocks: Block[] = useMemo(() => simulationParsed?.blocks ?? [], [simulationParsed])
 
-  async function fetchSavedTemplates() {
+  // Set once the page has been restored from the draft; until then the draft
+  // must not be overwritten by the placeholder state the page starts with.
+  const draftRestored = useRef(false)
+
+  // `restoreDraft` is only passed on first load: it reopens whatever was being
+  // edited before navigating away, instead of the most recently saved one.
+  async function fetchSavedTemplates(restoreDraft = false) {
     try {
       const token = await auth.currentUser?.getIdToken()
-      if (!token) return
+      if (!token) { setLoadError('Not signed in — could not load saved simulations.'); return }
       const res = await fetch(`${API_BASE}/api/simulations`, { headers: { Authorization: `Bearer ${token}` } })
-      if (!res.ok) return
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}))
+        setLoadError(`Failed to list saved simulations: ${res.status} ${body.error ?? res.statusText}`)
+        return
+      }
       const data = await res.json()
       setSavedTemplates(data.templates)
+      const draft = restoreDraft ? readDraft<SimulationDraft>(DRAFT_SCOPE) : null
+      const draftBase = draft?.lastSavedName != null
+        ? (data.templates as { id: string; name: string }[]).find(t => t.name === draft.lastSavedName)
+        : undefined
+      // The draft is of a simulation that was never saved, or whose saved copy
+      // has since been deleted: bring it back as unsaved.
+      if (draft && !draftBase && (draft.lastSavedName === null || draft.simulationData !== null)) {
+        if (draft.simulationData !== null) setSimulationData(draft.simulationData)
+        setTemplateName(draft.templateName)
+        setLastSavedContent(null)
+        setLastSavedName(null)
+        setRuns(draft.runs?.length ? draft.runs : [EMPTY_RUN])
+        setLoadError(null)
+        return
+      }
       if (data.count > 0) {
-        const first = data.templates[0]
+        const first = draftBase ?? data.templates[0]
         const loadRes = await fetch(`${API_BASE}/api/simulations/load?id=${encodeURIComponent(first.id)}`, {
           headers: { Authorization: `Bearer ${token}` },
         })
@@ -208,19 +246,33 @@ export default function SimulationPage() {
           setLastSavedContent(content)
           setLastSavedName(loaded.name)
           setRuns([EMPTY_RUN])
+          setLoadError(null)
+          if (draftBase) {
+            if (draft!.simulationData !== null) setSimulationData(draft!.simulationData)
+            setTemplateName(draft!.templateName)
+            if (draft!.runs?.length) setRuns(draft!.runs)
+          }
+        } else {
+          const body = await loadRes.json().catch(() => ({}))
+          setLoadError(`Failed to load "${first.name}": ${loadRes.status} ${body.error ?? loadRes.statusText}`)
         }
       } else {
         setTemplateName('Simulation Export 1')
+        setLoadError(null)
       }
     } catch (e) {
+      setLoadError(`Failed to load saved simulations: ${e instanceof Error ? e.message : String(e)}`)
       console.warn('fetchSavedTemplates failed:', e)
+    } finally {
+      if (restoreDraft) draftRestored.current = true
     }
   }
 
   async function handleSave() {
     if (!templateName.trim()) return
+    setSaveError(null)
     const token = await auth.currentUser?.getIdToken()
-    if (!token) return
+    if (!token) { setSaveError('Not signed in — could not save.'); return }
 
     setSaving(true)
     try {
@@ -232,9 +284,15 @@ export default function SimulationPage() {
       if (res.ok) {
         setLastSavedContent(simulationData)
         setLastSavedName(templateName.trim())
+        announceSimulationSaved()
         await fetchSavedTemplates()
         setShowSaveAlert(true)
+      } else {
+        const body = await res.json().catch(() => ({}))
+        setSaveError(`Save failed: ${res.status} ${body.error ?? res.statusText}`)
       }
+    } catch (e) {
+      setSaveError(`Save failed: ${e instanceof Error ? e.message : String(e)}`)
     } finally {
       setSaving(false)
     }
@@ -276,10 +334,78 @@ export default function SimulationPage() {
         setAuthReady(true)
         setUserEmail(user.email)
         setSimulationData(JSON.stringify(DEFAULT_SIMULATION, null, 2))
-        fetchSavedTemplates()
+        fetchSavedTemplates(true)
       }
     })
   }, [router])
+
+  useEffect(() => {
+    if (!draftRestored.current || simulationData === null) return
+    writeDraft<SimulationDraft>(DRAFT_SCOPE, {
+      lastSavedName,
+      simulationData: isDirty ? simulationData : null,
+      templateName,
+      runs,
+    })
+  }, [simulationData, isDirty, lastSavedName, templateName, runs])
+
+  // Blocks are what the mediator / agent-participant / assistant editors read
+  // from the saved simulation, so they are written back on their own shortly
+  // after every edit instead of waiting for Save. Only the blocks go out: they
+  // are merged into the last-saved copy, so any other unsaved edits here stay
+  // unsaved. A simulation that has never been saved is saved whole under its
+  // current name — unless that name already belongs to another saved
+  // simulation, which autosave must not silently overwrite.
+  const blocksJson = useMemo(() => JSON.stringify(blocks), [blocks])
+  const pendingBlockSave = useRef<(() => void) | null>(null)
+  useEffect(() => {
+    pendingBlockSave.current = null
+    if (!authReady || simulationData === null) return
+    // A fresh simulation nobody has touched the blocks of isn't worth saving.
+    if (lastSavedContent === null && blocksJson === JSON.stringify(DEFAULT_BLOCKS)) return
+    let base: Record<string, unknown>
+    try { base = JSON.parse(lastSavedContent ?? simulationData) } catch { return }
+    if (lastSavedContent !== null && JSON.stringify(base.blocks ?? []) === blocksJson) return
+
+    const name = (lastSavedName ?? templateName).trim()
+    if (!name) return
+    if (lastSavedName === null && savedTemplates.some(t => t.name === name)) return
+
+    base.blocks = JSON.parse(blocksJson)
+    const content = lastSavedContent === null ? simulationData : JSON.stringify(base, null, 2)
+
+    const save = async () => {
+      pendingBlockSave.current = null
+      const token = await auth.currentUser?.getIdToken()
+      if (!token) return
+      try {
+        const res = await fetch(`${API_BASE}/api/simulations`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ name, content }),
+          keepalive: true,
+        })
+        if (!res.ok) {
+          const body = await res.json().catch(() => ({}))
+          setSaveError(`Autosaving blocks failed: ${res.status} ${body.error ?? res.statusText}`)
+          return
+        }
+        const { id } = await res.json()
+        announceSimulationSaved()
+        setLastSavedContent(content)
+        setLastSavedName(name)
+        setSavedTemplates(prev => (prev.some(t => t.id === id) ? prev : [{ id, name }, ...prev]))
+      } catch (e) {
+        setSaveError(`Autosaving blocks failed: ${e instanceof Error ? e.message : String(e)}`)
+      }
+    }
+    pendingBlockSave.current = save
+    const timer = setTimeout(save, 800)
+    return () => clearTimeout(timer)
+  }, [blocksJson, authReady, simulationData, lastSavedContent, lastSavedName, templateName, savedTemplates])
+
+  // Leaving the page inside the debounce window still gets the edit saved.
+  useEffect(() => () => { pendingBlockSave.current?.() }, [])
 
   useEffect(() => {
     if (isDirty) setShowSaveAlert(false)
@@ -573,6 +699,32 @@ export default function SimulationPage() {
             </div>
           )}
 
+          {saveError && (
+            <div className="flex items-start justify-between gap-3 rounded-md border border-red-600/40 bg-red-500/10 px-3 py-2.5 text-sm text-red-300">
+              <p>{saveError}</p>
+              <button
+                onClick={() => setSaveError(null)}
+                className="text-red-400 hover:text-red-200 cursor-pointer leading-none"
+                aria-label="Dismiss"
+              >
+                ×
+              </button>
+            </div>
+          )}
+
+          {loadError && (
+            <div className="flex items-start justify-between gap-3 rounded-md border border-red-600/40 bg-red-500/10 px-3 py-2.5 text-sm text-red-300">
+              <p>{loadError}</p>
+              <button
+                onClick={() => setLoadError(null)}
+                className="text-red-400 hover:text-red-200 cursor-pointer leading-none"
+                aria-label="Dismiss"
+              >
+                ×
+              </button>
+            </div>
+          )}
+
           {/* Conversation parameters */}
           <div className="space-y-4">
             <div className="border-b border-neutral-800 pb-3">
@@ -594,6 +746,9 @@ export default function SimulationPage() {
                 blocks={blocks}
                 onUpdate={next => updateSimulationField('blocks', next)}
               />
+              <p className="text-xs text-neutral-600">
+                Blocks save automatically, so they show up under “Add item” in the other toolkits right away. Other changes still need <span className="text-neutral-400">Save</span>.
+              </p>
             </Field>
 
             <Field label="Max Utterance">

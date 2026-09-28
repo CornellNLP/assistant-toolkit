@@ -15,7 +15,7 @@ import { SaveSection } from '../components/SaveSection'
 import { YamlIOSection } from '../components/YamlIOSection'
 import { Nav } from '../components/Nav'
 import { SimulationBlockPicker } from '../components/SimulationBlockPicker'
-import { useSimulationBlocks } from '../lib/blocks'
+import { useSimulationBlocks, describeBlock, type Block } from '../lib/blocks'
 
 const idle: ActionState = { status: 'idle', result: null }
 
@@ -112,16 +112,20 @@ function PromptBlockLegend({
   showCharacterContext,
   showThoughtHistoryContext,
   promptOutputOptions = [],
+  simulationBlocks = [],
+  usingDefaultBlocks,
 }: {
   showInitializationContext?: boolean
   showCharacterContext?: boolean
   showThoughtHistoryContext?: boolean
   promptOutputOptions?: { id: string; label: string }[]
+  simulationBlocks?: Block[]
+  usingDefaultBlocks?: boolean
 }) {
-  const legend = (key: string, color: string, title: string, text: string) => (
+  const legend = (key: string, color: string, title: string, text: string, dim = false) => (
     <Fragment key={key}>
-      <span className={`inline-block rounded px-2 py-0.5 font-medium text-neutral-900 ${color}`}>{title}</span>
-      <span>{text}</span>
+      <span className={`inline-block rounded px-2 py-0.5 font-medium ${dim ? 'bg-neutral-800 text-neutral-500' : `text-neutral-900 ${color}`}`}>{title}</span>
+      <span className={dim ? 'text-neutral-600' : undefined}>{text}</span>
     </Fragment>
   )
 
@@ -131,19 +135,31 @@ function PromptBlockLegend({
       <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-2 items-center">
         <span className="font-medium text-neutral-300">Freeform Text</span>
         <span>Custom instructions written directly by you.</span>
-        {legend('debate-topic', 'bg-[#fde8c8]', 'Debate Topic', 'The topic of the debate.')}
-        {legend('debate-statement', 'bg-[#fde8c8]', 'Debate Statement', 'The statement participants take a position on.')}
-        {legend('initial-positions', 'bg-[#dce1fd]', 'Participant Initial Positions', "The participants' pre-conversation survey responses.")}
         {legend('conversation-context', 'bg-[#dce1fd]', 'Conversation Context', 'The discussion up to the current message.')}
         {legend('profile-info', 'bg-[#f9d8f5]', 'Profile Info', "This agent's own profile data.")}
-        {legend('participant-info', 'bg-[#dce1fd]', 'Participant Info', "The other participant's profile data.")}
-        {legend('participant-chat-input', 'bg-[#dce1fd]', 'Participant Chat Input', "The other participant's current, unsent chat draft.")}
         {showInitializationContext && legend('initialization-result', 'bg-[#d8f9e0]', 'Initialization Result', 'The output of the initialization prompt.')}
         {showCharacterContext && legend('character', 'bg-[#f9e0d8]', 'Character', "The agent's current character.")}
         {showThoughtHistoryContext && legend('thought-history', 'bg-[#d8f0f9]', 'Thought History', "The agent's thought history.")}
         {promptOutputOptions.map(opt => legend(`prompt-output-${opt.id}`, 'bg-[#e0d8f9]', `Output: ${opt.label}`, `The output of the "${opt.label}" prompt.`))}
-        {legend('target-bias', 'bg-[#f08673]', 'Target Bias Position', 'The direction of covert influence, if used.')}
-        {legend('simulation-blocks', 'bg-[#e6dcfd]', 'Simulation Blocks', 'The blocks you defined under Block Customization in the Simulation Toolkit.')}
+        {simulationBlocks.length === 0
+          ? legend(
+            'simulation-blocks',
+            'bg-[#e6dcfd]',
+            'Simulation Blocks',
+            'Not available yet — define blocks under Block Customization in the Simulation Toolkit first.',
+            true,
+          )
+          : simulationBlocks.map(block => legend(
+            `simulation-block-${block.name}`,
+            'bg-[#e6dcfd]',
+            `${block.name} (Simulation Block)`,
+            describeBlock(block),
+          ))}
+        {usingDefaultBlocks && (
+          <p className="col-span-2 text-xs text-neutral-600">
+            More can be defined under Block Customization in the Simulation Toolkit — they'll show up here once saved.
+          </p>
+        )}
       </div>
     </div>
   )
@@ -186,7 +202,7 @@ export default function AgentParticipantsPage() {
 
   // Blocks are authored in the Simulation Toolkit and live inside the saved
   // simulation, so they are read-only here.
-  const { blocks, simulations, selectedId, setSelectedId } = useSimulationBlocks()
+  const { blocks, blocksLoaded, usingDefaultBlocks, simulations, selectedId, setSelectedId, error: simulationBlocksError } = useSimulationBlocks()
 
   // Seeded synchronously so the prompt editor always has something to show
   // and edit immediately, instead of waiting on the save system's network
@@ -645,6 +661,7 @@ export default function AgentParticipantsPage() {
               simulations={simulations}
               selectedId={selectedId}
               onSelect={setSelectedId}
+              error={simulationBlocksError}
             />
 
             {/* PROMPT TYPE TABS — boxed container, matching the assistant toolkit */}
@@ -823,6 +840,7 @@ export default function AgentParticipantsPage() {
                           showCharacterContext={characterAvailable}
                           showThoughtHistoryContext={thoughtEnabled}
                           promptOutputOptions={activePromptOutputOptions}
+                          simulationBlocks={blocks} usingDefaultBlocks={usingDefaultBlocks}
                         />
                         <StructuredPromptEditor
                           label={activeMessageName === MESSAGE_KEY ? 'Message' : activeMessageName}
@@ -830,10 +848,12 @@ export default function AgentParticipantsPage() {
                           stageId=""
                           onUpdate={items => updatePromptBlocks(activeMessageName, items)}
                           blocks={blocks}
+                          blocksLoaded={blocksLoaded}
                           showInitializationContext={initializationEnabled}
                           showCharacterContext={characterAvailable}
                           showThoughtHistoryContext={thoughtEnabled}
                           promptOutputOptions={activePromptOutputOptions}
+                          hideDebateAndParticipantBlocks
                         />
                       </>
                     )}
@@ -845,13 +865,14 @@ export default function AgentParticipantsPage() {
                     <PromptEditorDescription description="Runs once before the conversation begins to produce context the agent can draw on later. Toggle it on above to enable it." />
                     {initializationEnabled ? (
                       <>
-                        <PromptBlockLegend />
+                        <PromptBlockLegend simulationBlocks={blocks} usingDefaultBlocks={usingDefaultBlocks} />
                         <StructuredPromptEditor
                           label="Initialization Prompt"
                           prompt={agentParsed?.chatSettings?.initializationPrompt ?? []}
                           stageId=""
                           onUpdate={updateInitializationBlocks}
                           showInitializationContext={false}
+                          hideDebateAndParticipantBlocks
                         />
                       </>
                     ) : (
@@ -868,6 +889,7 @@ export default function AgentParticipantsPage() {
                         <PromptBlockLegend
                           showInitializationContext={initializationEnabled}
                           showThoughtHistoryContext={thoughtEnabled}
+                          simulationBlocks={blocks} usingDefaultBlocks={usingDefaultBlocks}
                         />
                         <StructuredPromptEditor
                           label="Character Update Prompt"
@@ -875,8 +897,10 @@ export default function AgentParticipantsPage() {
                           stageId=""
                           onUpdate={updateCharacterBlocks}
                           blocks={blocks}
+                          blocksLoaded={blocksLoaded}
                           showInitializationContext={initializationEnabled}
                           showThoughtHistoryContext={thoughtEnabled}
+                          hideDebateAndParticipantBlocks
                         />
                       </>
                     ) : (
@@ -893,6 +917,7 @@ export default function AgentParticipantsPage() {
                         <PromptBlockLegend
                           showInitializationContext={initializationEnabled}
                           showCharacterContext={characterAvailable}
+                          simulationBlocks={blocks} usingDefaultBlocks={usingDefaultBlocks}
                         />
                         <StructuredPromptEditor
                           label="Thought Generation Prompt"
@@ -900,8 +925,10 @@ export default function AgentParticipantsPage() {
                           stageId=""
                           onUpdate={updateThoughtBlocks}
                           blocks={blocks}
+                          blocksLoaded={blocksLoaded}
                           showInitializationContext={initializationEnabled}
                           showCharacterContext={characterAvailable}
+                          hideDebateAndParticipantBlocks
                         />
                       </>
                     ) : (

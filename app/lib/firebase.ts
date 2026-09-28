@@ -10,7 +10,12 @@ import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore'
 // to make the same switch, or it authenticates against real production
 // Firebase while the server verifies against the emulator for a different
 // project, and every authenticated API call fails verification silently.
-const useEmulators = process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === 'true'
+//
+// NEXT_PUBLIC_* values are baked in at build time, so a .env that sneaks into a
+// production build (e.g. via the Dockerfile's `COPY . .`) would point the live
+// site's logins at 127.0.0.1. Only `next dev` may use the emulators.
+const useEmulators = process.env.NODE_ENV !== 'production'
+  && process.env.NEXT_PUBLIC_USE_FIREBASE_EMULATORS === 'true'
 
 // Your web app's Firebase configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional

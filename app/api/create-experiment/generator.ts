@@ -229,6 +229,11 @@ export async function generate(p1: string, p2: string, experimentTemplatePath: s
   // point at through `persona.assistantId`.
   const assistants: AgentAssistantTemplate[] = []
   const assistantIdForSlot: Record<string, string> = {}
+  // Assistant prompts can reference simulation blocks too, and must draw the
+  // same option the chat stage, mediator and agents got.
+  const parseAssistant = (content: string) =>
+    resolveBlockItems(parseAssistantTemplate(content), simulation?.blocks ?? [], blockChoices)
+  const assistantTopic = simulation ? null : topicInfo
   // Whether the caller named an assistant per seat rather than one for the run.
   // That is the only form that can address a seat past p2, so where it is given
   // it names the recipients on its own and `agentAssignment` is not consulted.
@@ -237,7 +242,7 @@ export async function generate(p1: string, p2: string, experimentTemplatePath: s
     participantSlots.forEach(({ slot }, i) => {
       const content = assistantTemplateContents![i]
       if (!content) return
-      const assistant = buildAssistant(chatStageId, parseAssistantTemplate(content), stageIdsInOrder, simulation ? null : topicInfo, postTitle, postDescription, roleFor(slot))
+      const assistant = buildAssistant(chatStageId, parseAssistant(content), stageIdsInOrder, assistantTopic, postTitle, postDescription, roleFor(slot))
       // The same collision the agent templates have: every assistant one user
       // saves carries the same persona id (the Agent Assistant toolkit derives it
       // from their email and does not expose it for editing), so this suffix is
@@ -249,20 +254,20 @@ export async function generate(p1: string, p2: string, experimentTemplatePath: s
   } else if (assistantTemplateContent) {
     // one shared assistant normally; but when both participants get the assistant and we know
     // who's OP, build two role-specific assistants (one can't correctly serve both roles at once).
-    const parsedAssistant = parseAssistantTemplate(assistantTemplateContent)
+    const parsedAssistant = parseAssistant(assistantTemplateContent)
     if (agentAssignment === 'both' && opParticipant) {
       const opSlot = opParticipant === 'participant-1' ? 'p1' : 'p2'
       const challengerSlot = opSlot === 'p1' ? 'p2' : 'p1'
-      const opAssistant = buildAssistant(chatStageId, parsedAssistant, stageIdsInOrder, topicInfo, postTitle, postDescription, 'OP')
+      const opAssistant = buildAssistant(chatStageId, parsedAssistant, stageIdsInOrder, assistantTopic, postTitle, postDescription, 'OP')
       opAssistant.persona.id = `${opAssistant.persona.id}-op`
-      const challengerAssistant = buildAssistant(chatStageId, parsedAssistant, stageIdsInOrder, topicInfo, postTitle, postDescription, 'Challenger')
+      const challengerAssistant = buildAssistant(chatStageId, parsedAssistant, stageIdsInOrder, assistantTopic, postTitle, postDescription, 'Challenger')
       challengerAssistant.persona.id = `${challengerAssistant.persona.id}-challenger`
       assistants.push(opAssistant, challengerAssistant)
       assistantIdForSlot[opSlot] = opAssistant.persona.id
       assistantIdForSlot[challengerSlot] = challengerAssistant.persona.id
     } else {
       const singleSlot = agentAssignment === 'participant-1' ? 'p1' : agentAssignment === 'participant-2' ? 'p2' : undefined
-      const assistant = buildAssistant(chatStageId, parsedAssistant, stageIdsInOrder, topicInfo, postTitle, postDescription, singleSlot ? roleFor(singleSlot) : undefined)
+      const assistant = buildAssistant(chatStageId, parsedAssistant, stageIdsInOrder, assistantTopic, postTitle, postDescription, singleSlot ? roleFor(singleSlot) : undefined)
       assistants.push(assistant)
       if (singleSlot) {
         assistantIdForSlot[singleSlot] = assistant.persona.id
@@ -384,7 +389,13 @@ export async function generate(p1: string, p2: string, experimentTemplatePath: s
 
   const agents = cohortAgents.flat() 
 
-  const [template, cohortAlias] = buildExperiment(experimentTemplate, topicInfo, stages, stageIdsInOrder, mediatorR1, agents, mode, isSim, assistants, postTitle, postDescription, participantSlots.length)
+  // Experiment-wide chat settings (assistant replies public, anyone may delete
+  // a message) belong to the simulation; unset ones come from the experiment YAML.
+  const cohortFlags = {
+    publicizeAssistantMessages: simulation?.publicizeAssistantMessages,
+    allowPublicMessageDeletion: simulation?.allowPublicMessageDeletion,
+  }
+  const [template, cohortAlias] = buildExperiment(experimentTemplate, topicInfo, stages, stageIdsInOrder, mediatorR1, agents, mode, isSim, assistants, postTitle, postDescription, participantSlots.length, cohortFlags)
   // Nothing to randomize a bias for when the run has no mediator, or when it is a
   // simulation-toolkit conversation with no sides to favor.
   template.experiment.variableConfigs = mediatorR1 && !simulation ? [BIAS_VARIABLE_CONFIG] : []

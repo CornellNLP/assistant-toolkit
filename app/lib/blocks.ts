@@ -97,6 +97,9 @@ export function useSimulationBlocks() {
   const [simulations, setSimulations] = useState<SimulationSummary[]>([])
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [rawBlocks, setBlocks] = useState<Block[]>([])
+  // The selected simulation as saved, for pages that run against it (the
+  // assistant toolkit takes its topic from here). Null until one has loaded.
+  const [content, setContent] = useState<string | null>(null)
   const [signedIn, setSignedIn] = useState(false)
   // Whether the simulation list has come back yet, and which simulation the
   // current `rawBlocks` were read from — together they say whether `blocks`
@@ -136,7 +139,7 @@ export function useSimulationBlocks() {
   useEffect(() => onAuthStateChanged(auth, user => {
     setSignedIn(!!user)
     if (user) refresh()
-    else { setSimulations([]); setSelectedId(null); setBlocks([]); setListed(false); setLoadedFor(null) }
+    else { setSimulations([]); setSelectedId(null); setBlocks([]); setContent(null); setListed(false); setLoadedFor(null) }
   }), [refresh])
 
   useEffect(() => {
@@ -173,7 +176,7 @@ export function useSimulationBlocks() {
   }, [pathname, signedIn, refresh])
 
   useEffect(() => {
-    if (!selectedId) { setBlocks([]); return }
+    if (!selectedId) { setBlocks([]); setContent(null); return }
     let cancelled = false
     ;(async () => {
       try {
@@ -189,7 +192,7 @@ export function useSimulationBlocks() {
           return
         }
         const data = await res.json()
-        if (!cancelled) { setBlocks(parseBlocks(data.content)); setLoadedFor(selectedId); setError(null) }
+        if (!cancelled) { setBlocks(parseBlocks(data.content)); setContent(data.content); setLoadedFor(selectedId); setError(null) }
       } catch (e) {
         if (!cancelled) setError(`Failed to load simulation blocks: ${e instanceof Error ? e.message : String(e)}`)
         console.warn('useSimulationBlocks: loading simulation failed:', e)
@@ -211,5 +214,9 @@ export function useSimulationBlocks() {
   // when the simulation now has no blocks at all.
   const blocksLoaded = listed && (simulations.length === 0 || (selectedId !== null && loadedFor === selectedId))
 
-  return { blocks, blocksLoaded, usingDefaultBlocks, simulations, selectedId, setSelectedId, refresh, error }
+  // Only handed out once it belongs to the selected simulation, so a run never
+  // goes out with the previous pick's content while the new one is loading.
+  const simulationContent = selectedId !== null && loadedFor === selectedId ? content : null
+
+  return { blocks, blocksLoaded, usingDefaultBlocks, simulations, selectedId, setSelectedId, refresh, error, simulationContent }
 }

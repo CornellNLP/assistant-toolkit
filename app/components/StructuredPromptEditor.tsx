@@ -25,7 +25,9 @@ export enum PromptItemType {
   POST_TITLE = 'POST_TITLE',
   POST_DESCRIPTION = 'POST_DESCRIPTION',
   RULE = 'RULE',
-  PARTICIPANT_ROLE = 'PARTICIPANT_ROLE'
+  PARTICIPANT_ROLE = 'PARTICIPANT_ROLE',
+  LATEST_ASSISTANT_MESSAGE = 'LATEST_ASSISTANT_MESSAGE',
+  LATEST_PARTICIPANT_DRAFT = 'LATEST_PARTICIPANT_DRAFT',
 }
 
 export const RULE_OPTIONS = ['A', 'B', 'C', 'D', 'E', '1', '2', '3', '4', '5'] as const
@@ -121,6 +123,16 @@ export interface ParticipantRolePromptItem extends PromptItem {
 export interface RulePromptItem extends PromptItem {
   type: PromptItemType.RULE
   rule: RuleOption
+}
+
+// Assistant Specific. Both read the participant's previous assistant consult
+// for the stage; the platform renders them, the toolkit only passes them on.
+export interface LatestAssistantMessagePromptItem extends PromptItem {
+  type: PromptItemType.LATEST_ASSISTANT_MESSAGE
+}
+
+export interface LatestParticipantDraftPromptItem extends PromptItem {
+  type: PromptItemType.LATEST_PARTICIPANT_DRAFT
 }
 
 // Legacy
@@ -244,7 +256,7 @@ function AddMenu({ targetArr, textOnly, blocks = [], assistantMode, showInitiali
   targetArr: PromptItem[]
   textOnly?: boolean
   blocks?: Block[]
-  assistantMode?: 'wp' | 'reddit'
+  assistantMode?: 'wp' | 'reddit' | 'simulation'
   showInitializationContext?: boolean
   showCharacterContext?: boolean
   showThoughtHistoryContext?: boolean
@@ -351,6 +363,18 @@ function AddMenu({ targetArr, textOnly, blocks = [], assistantMode, showInitiali
                   <div className="my-0.5 border-t border-neutral-700/60" />
                   <div className={itemClass} role="button" onClick={() => pick({ type: PromptItemType.PARTICIPANT_CHAT_INPUT } as ParticipantChatInputPromptItem)}>
                     Participant Chat Input
+                  </div>
+                </>
+              )}
+              {assistantMode && (
+                <>
+                  <div className="my-0.5 border-t border-neutral-700/60" />
+                  <div className={itemClass} role="button" onClick={() => pick({ type: PromptItemType.LATEST_ASSISTANT_MESSAGE } as LatestAssistantMessagePromptItem)}>
+                    Latest Assistant Message
+                  </div>
+                  <div className="my-0.5 border-t border-neutral-700/60" />
+                  <div className={itemClass} role="button" onClick={() => pick({ type: PromptItemType.LATEST_PARTICIPANT_DRAFT } as LatestParticipantDraftPromptItem)}>
+                    Latest Participant Draft
                   </div>
                 </>
               )}
@@ -642,6 +666,18 @@ function ItemEditor({ item }: { item: PromptItem }) {
           Participant Chat Input
         </div>
       )
+    case PromptItemType.LATEST_ASSISTANT_MESSAGE:
+      return (
+        <div className="cursor-default rounded bg-[#dce1fd] px-3 py-1.5 text-sm font-medium text-neutral-900">
+          Latest Assistant Message
+        </div>
+      )
+    case PromptItemType.LATEST_PARTICIPANT_DRAFT:
+      return (
+        <div className="cursor-default rounded bg-[#dce1fd] px-3 py-1.5 text-sm font-medium text-neutral-900">
+          Latest Participant Draft
+        </div>
+      )
     case PromptItemType.INITIALIZATION_CONTEXT:
     case PromptItemType.PRELOADED_CONTEXT:
       return (
@@ -790,7 +826,7 @@ export interface StructuredPromptEditorProps {
   blocks?: Block[]
   /** Whether `blocks` has loaded; enables the deleted-block warning even when it is empty. */
   blocksLoaded?: boolean
-  assistantMode?: 'wp' | 'reddit'
+  assistantMode?: 'wp' | 'reddit' | 'simulation'
   // Gates the "Initialization Result" block; omit to keep it always offered
   // (existing callers), pass false where initialization is an optional,
   // toggleable feature and it should only appear once enabled.

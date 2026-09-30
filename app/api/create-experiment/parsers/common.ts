@@ -134,6 +134,9 @@ export function buildContextItems(stageId: string, stageIdsInOrder: string[], co
 
 
 
+// The stage that holds each participant's profile, in every experiment template.
+const PROFILE_STAGE_ID = 'profile'
+
 export function buildPromptItems(tpl: Record<string, any>, stageId: string, stageIdsInOrder: string[], stageSpecificPrompts: PromptItem[] = [], postTitle?: string, postDescription?: string, assistedRole?: string, forAssistant = false): PromptItem[] {
   const context: string = tpl.context
   const prompts: any[] = [...(tpl.prompt ?? [])].sort((a, b) => (a.id ?? 0) - (b.id ?? 0))
@@ -152,6 +155,13 @@ export function buildPromptItems(tpl: Record<string, any>, stageId: string, stag
     } else if (kind === 'LATEST_ASSISTANT_MESSAGE' || kind === 'LATEST_PARTICIPANT_DRAFT') {
       if (!forAssistant) throw new Error(`Prompt item type ${kind} is only available in assistant prompts.`)
       items.push({ type: kind })
+    } else if (kind === 'PARTICIPANT_PROFILES') {
+      // Every participant's profile: the profile stage's context alone, unlike
+      // a 'before' CONTEXT, which also carries the pre-survey answers. A run
+      // without a profile stage has nothing to show.
+      if (stageIdsInOrder.includes(PROFILE_STAGE_ID)) {
+        items.push(...buildContextItems(PROFILE_STAGE_ID, stageIdsInOrder, 'current'))
+      }
     } else if (kind === 'PROFILE_CONTEXT') {
       items.push({ type: 'PROFILE_CONTEXT' })
     } else if (kind === 'INITIALIZATION_CONTEXT' || kind === 'PRELOADED_CONTEXT') {
@@ -185,7 +195,7 @@ export function buildPromptItems(tpl: Record<string, any>, stageId: string, stag
     } else if (kind === 'ARTICLE_PAGE') {
       items.push({ type: 'TEXT', text: `${postTitle ?? ''}\n${postDescription ?? ''}` })
     } else {
-      throw new Error(`Unknown prompt item type ${kind}. Must be 'CONTEXT', 'PROFILE_INFO', 'PARTICIPANT_INFO', 'PARTICIPANT_CHAT_INPUT', 'LATEST_ASSISTANT_MESSAGE', 'LATEST_PARTICIPANT_DRAFT', 'PROFILE_CONTEXT', 'INITIALIZATION_CONTEXT', 'PRELOADED_CONTEXT', 'PROMPT_OUTPUT', 'CHARACTER_CONTEXT', 'THOUGHT_HISTORY_CONTEXT', 'BIASED', 'BLOCK', 'POST_TITLE', 'POST_DESCRIPTION', 'RULE', 'PARTICIPANT_ROLE', 'ARTICLE_PAGE' or 'TEXT'.`)
+      throw new Error(`Unknown prompt item type ${kind}. Must be 'CONTEXT', 'PROFILE_INFO', 'PARTICIPANT_INFO', 'PARTICIPANT_CHAT_INPUT', 'LATEST_ASSISTANT_MESSAGE', 'LATEST_PARTICIPANT_DRAFT', 'PARTICIPANT_PROFILES', 'PROFILE_CONTEXT', 'INITIALIZATION_CONTEXT', 'PRELOADED_CONTEXT', 'PROMPT_OUTPUT', 'CHARACTER_CONTEXT', 'THOUGHT_HISTORY_CONTEXT', 'BIASED', 'BLOCK', 'POST_TITLE', 'POST_DESCRIPTION', 'RULE', 'PARTICIPANT_ROLE', 'ARTICLE_PAGE' or 'TEXT'.`)
     }
   }
   return [...items, ...stageSpecificPrompts]

@@ -28,6 +28,7 @@ export enum PromptItemType {
   PARTICIPANT_ROLE = 'PARTICIPANT_ROLE',
   LATEST_ASSISTANT_MESSAGE = 'LATEST_ASSISTANT_MESSAGE',
   LATEST_PARTICIPANT_DRAFT = 'LATEST_PARTICIPANT_DRAFT',
+  PARTICIPANT_PROFILES = 'PARTICIPANT_PROFILES',
 }
 
 export const RULE_OPTIONS = ['A', 'B', 'C', 'D', 'E', '1', '2', '3', '4', '5'] as const
@@ -135,6 +136,12 @@ export interface LatestParticipantDraftPromptItem extends PromptItem {
   type: PromptItemType.LATEST_PARTICIPANT_DRAFT
 }
 
+// Every participant's profile (the profile stage only, no survey answers).
+// Expanded by the toolkit's backend into a stage context for the profile stage.
+export interface ParticipantProfilesPromptItem extends PromptItem {
+  type: PromptItemType.PARTICIPANT_PROFILES
+}
+
 // Legacy
 export interface PreloadedContextPromptItem extends PromptItem {
   type: PromptItemType.PRELOADED_CONTEXT
@@ -207,7 +214,31 @@ function treeReorder(root: PromptItem[], targetArr: PromptItem[], from: number, 
 // Editor context
 // ============================================================
 
+type AssistantMode = 'wp' | 'reddit' | 'simulation'
+
+// Display names for the participant blocks. The /assistant and Reddit editors
+// use the newer names; WP, the mediator and the agent editor keep the old ones.
+// Only the label changes — the stored item type stays the same everywhere.
+const RENAMED_LABELS: Partial<Record<string, string>> = {
+  [PromptItemType.PARTICIPANT_INFO]: 'Profile Info',
+  [PromptItemType.PARTICIPANT_CHAT_INPUT]: 'Current Draft',
+  [PromptItemType.LATEST_ASSISTANT_MESSAGE]: 'Previous Assistant Message',
+  [PromptItemType.LATEST_PARTICIPANT_DRAFT]: 'Previous Draft',
+}
+const OLD_LABELS: Partial<Record<string, string>> = {
+  [PromptItemType.PARTICIPANT_INFO]: 'Participant Info',
+  [PromptItemType.PARTICIPANT_CHAT_INPUT]: 'Participant Chat Input',
+  [PromptItemType.LATEST_ASSISTANT_MESSAGE]: 'Latest Assistant Message',
+  [PromptItemType.LATEST_PARTICIPANT_DRAFT]: 'Latest Participant Draft',
+}
+
+function participantBlockLabel(type: PromptItemType, assistantMode?: AssistantMode): string {
+  const renamed = assistantMode === 'simulation' || assistantMode === 'reddit'
+  return (renamed ? RENAMED_LABELS : OLD_LABELS)[type] ?? type
+}
+
 interface EditorCtx {
+  assistantMode?: AssistantMode
   locked: boolean
   blocks: Block[]
   blocksLoaded?: boolean
@@ -252,17 +283,18 @@ function IconButton({ icon, title, onClick }: {
   )
 }
 
-function AddMenu({ targetArr, textOnly, blocks = [], assistantMode, showInitializationContext, showCharacterContext, showThoughtHistoryContext, hideDebateAndParticipantBlocks, showSimulationBlocks = true, hideDebateItems }: {
+function AddMenu({ targetArr, textOnly, blocks = [], assistantMode, showInitializationContext, showCharacterContext, showThoughtHistoryContext, hideDebateAndParticipantBlocks, showSimulationBlocks = true, hideDebateItems, showParticipantProfiles }: {
   targetArr: PromptItem[]
   textOnly?: boolean
   blocks?: Block[]
-  assistantMode?: 'wp' | 'reddit' | 'simulation'
+  assistantMode?: AssistantMode
   showInitializationContext?: boolean
   showCharacterContext?: boolean
   showThoughtHistoryContext?: boolean
   hideDebateAndParticipantBlocks?: boolean
   showSimulationBlocks?: boolean
   hideDebateItems?: boolean
+  showParticipantProfiles?: boolean
 }) {
   const { addItem, locked, promptOutputOptions } = useEditorCtx()
   if (locked) return null
@@ -334,11 +366,19 @@ function AddMenu({ targetArr, textOnly, blocks = [], assistantMode, showInitiali
               </div>
             </>
           )}
-          {!assistantMode && !hideDebateAndParticipantBlocks && (
+          {!assistantMode && !hideDebateAndParticipantBlocks && !hideDebateItems && (
             <>
               <div className="my-0.5 border-t border-neutral-700/60" />
               <div className={itemClass} role="button" onClick={() => pick({ type: PromptItemType.CONTEXT, context: 'before' } as ContextPromptItem)}>
                 Participant Initial Positions
+              </div>
+            </>
+          )}
+          {showParticipantProfiles && (
+            <>
+              <div className="my-0.5 border-t border-neutral-700/60" />
+              <div className={itemClass} role="button" onClick={() => pick({ type: PromptItemType.PARTICIPANT_PROFILES } as ParticipantProfilesPromptItem)}>
+                Participant Profiles
               </div>
             </>
           )}
@@ -360,11 +400,11 @@ function AddMenu({ targetArr, textOnly, blocks = [], assistantMode, showInitiali
                 <>
                   <div className="my-0.5 border-t border-neutral-700/60" />
                   <div className={itemClass} role="button" onClick={() => pick({ type: PromptItemType.PARTICIPANT_INFO } as ParticipantInfoPromptItem)}>
-                    Participant Info
+                    {participantBlockLabel(PromptItemType.PARTICIPANT_INFO, assistantMode)}
                   </div>
                   <div className="my-0.5 border-t border-neutral-700/60" />
                   <div className={itemClass} role="button" onClick={() => pick({ type: PromptItemType.PARTICIPANT_CHAT_INPUT } as ParticipantChatInputPromptItem)}>
-                    Participant Chat Input
+                    {participantBlockLabel(PromptItemType.PARTICIPANT_CHAT_INPUT, assistantMode)}
                   </div>
                 </>
               )}
@@ -372,11 +412,11 @@ function AddMenu({ targetArr, textOnly, blocks = [], assistantMode, showInitiali
                 <>
                   <div className="my-0.5 border-t border-neutral-700/60" />
                   <div className={itemClass} role="button" onClick={() => pick({ type: PromptItemType.LATEST_ASSISTANT_MESSAGE } as LatestAssistantMessagePromptItem)}>
-                    Latest Assistant Message
+                    {participantBlockLabel(PromptItemType.LATEST_ASSISTANT_MESSAGE, assistantMode)}
                   </div>
                   <div className="my-0.5 border-t border-neutral-700/60" />
                   <div className={itemClass} role="button" onClick={() => pick({ type: PromptItemType.LATEST_PARTICIPANT_DRAFT } as LatestParticipantDraftPromptItem)}>
-                    Latest Participant Draft
+                    {participantBlockLabel(PromptItemType.LATEST_PARTICIPANT_DRAFT, assistantMode)}
                   </div>
                 </>
               )}
@@ -603,6 +643,7 @@ function PromptOutputItemEditor({ item }: { item: PromptOutputPromptItem }) {
 }
 
 function ItemEditor({ item }: { item: PromptItem }) {
+  const { assistantMode } = useEditorCtx()
   switch (item.type) {
     case PromptItemType.TEXT:
       if ((item as TextPromptItem).text === '{topic_name}' || (item as TextPromptItem).text === '{topic_name}\n') {
@@ -624,6 +665,12 @@ function ItemEditor({ item }: { item: PromptItem }) {
       return (
         <div className="cursor-default rounded bg-[#dce1fd] px-3 py-1.5 text-sm font-medium text-neutral-900">
           {(item as ContextPromptItem).context === 'before' ? 'Participant Initial Positions: the participants responses to the pre-conversation survey about the debate statement' : 'Conversation Context: the discussion up to this moment'}
+        </div>
+      )
+    case PromptItemType.PARTICIPANT_PROFILES:
+      return (
+        <div className="cursor-default rounded bg-[#dce1fd] px-3 py-1.5 text-sm font-medium text-neutral-900">
+          Participant Profiles
         </div>
       )
     case PromptItemType.ARTICLE_PAGE:
@@ -661,25 +708,25 @@ function ItemEditor({ item }: { item: PromptItem }) {
     case PromptItemType.PARTICIPANT_INFO:
       return (
         <div className="cursor-default rounded bg-[#dce1fd] px-3 py-1.5 text-sm font-medium text-neutral-900">
-          Participant Info
+          {participantBlockLabel(PromptItemType.PARTICIPANT_INFO, assistantMode)}
         </div>
       )
     case PromptItemType.PARTICIPANT_CHAT_INPUT:
       return (
         <div className="cursor-default rounded bg-[#dce1fd] px-3 py-1.5 text-sm font-medium text-neutral-900">
-          Participant Chat Input
+          {participantBlockLabel(PromptItemType.PARTICIPANT_CHAT_INPUT, assistantMode)}
         </div>
       )
     case PromptItemType.LATEST_ASSISTANT_MESSAGE:
       return (
         <div className="cursor-default rounded bg-[#dce1fd] px-3 py-1.5 text-sm font-medium text-neutral-900">
-          Latest Assistant Message
+          {participantBlockLabel(PromptItemType.LATEST_ASSISTANT_MESSAGE, assistantMode)}
         </div>
       )
     case PromptItemType.LATEST_PARTICIPANT_DRAFT:
       return (
         <div className="cursor-default rounded bg-[#dce1fd] px-3 py-1.5 text-sm font-medium text-neutral-900">
-          Latest Participant Draft
+          {participantBlockLabel(PromptItemType.LATEST_PARTICIPANT_DRAFT, assistantMode)}
         </div>
       )
     case PromptItemType.INITIALIZATION_CONTEXT:
@@ -830,7 +877,7 @@ export interface StructuredPromptEditorProps {
   blocks?: Block[]
   /** Whether `blocks` has loaded; enables the deleted-block warning even when it is empty. */
   blocksLoaded?: boolean
-  assistantMode?: 'wp' | 'reddit' | 'simulation'
+  assistantMode?: AssistantMode
   // Gates the "Initialization Result" block; omit to keep it always offered
   // (existing callers), pass false where initialization is an optional,
   // toggleable feature and it should only appear once enabled.
@@ -850,9 +897,12 @@ export interface StructuredPromptEditorProps {
   // could only ever run from its stored copy.
   showSimulationBlocks?: boolean
   // Hides only the debate items (Debate Topic, Debate Statement, Target
-  // Position), for editors not meant for debates; Participant Initial
-  // Positions and the participant blocks stay.
+  // Position, Participant Initial Positions), for editors not meant for
+  // debates; the participant blocks stay.
   hideDebateItems?: boolean
+  // Offers "Participant Profiles": every participant's profile, without the
+  // survey answers Participant Initial Positions carries.
+  showParticipantProfiles?: boolean
 }
 
 export function StructuredPromptEditor({
@@ -871,6 +921,7 @@ export function StructuredPromptEditor({
   hideDebateAndParticipantBlocks,
   showSimulationBlocks,
   hideDebateItems,
+  showParticipantProfiles,
 }: StructuredPromptEditorProps) {
   // A block item carries a copy of its descriptions so the exported template runs
   // without the simulation. Re-editing the block in the Simulation Toolkit would
@@ -899,6 +950,7 @@ export function StructuredPromptEditor({
   }, [prompt, blocks, locked, onUpdate])
 
   const ctx: EditorCtx = {
+    assistantMode,
     locked,
     blocks,
     blocksLoaded,
@@ -926,6 +978,7 @@ export function StructuredPromptEditor({
             hideDebateAndParticipantBlocks={hideDebateAndParticipantBlocks}
             showSimulationBlocks={showSimulationBlocks}
             hideDebateItems={hideDebateItems}
+            showParticipantProfiles={showParticipantProfiles}
           />
         </div>
         <div className="p-3">

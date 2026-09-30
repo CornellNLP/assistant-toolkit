@@ -48,13 +48,13 @@ function PromptBlockLegend() {
         <span>whether the assisted participant is OP or Challenger</span>
         {legend('bg-[#dce1fd]', 'Conversation Context')}
         <span>the discussion up to this moment</span>
-        {legend('bg-[#dce1fd]', 'Participant Info')}
+        {legend('bg-[#dce1fd]', 'Profile Info')}
         <span>the assisted participant's profile info</span>
-        {legend('bg-[#dce1fd]', 'Participant Chat Input')}
+        {legend('bg-[#dce1fd]', 'Current Draft')}
         <span>the participant's current, unsent chat draft</span>
-        {legend('bg-[#dce1fd]', 'Latest Assistant Message')}
+        {legend('bg-[#dce1fd]', 'Previous Assistant Message')}
         <span>the assistant's previous message to this participant, whether it chose to respond, and when</span>
-        {legend('bg-[#dce1fd]', 'Latest Participant Draft')}
+        {legend('bg-[#dce1fd]', 'Previous Draft')}
         <span>the draft the assistant last responded to</span>
       </div>
     </div>

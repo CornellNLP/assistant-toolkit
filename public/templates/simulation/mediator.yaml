@@ -1,8 +1,8 @@
 # Starting point for a new mediator in the Mediator Toolkit (/mediator). Merged
 # over defaults/mediator.yaml like competition/mediator.yaml, but without the
-# debate items (Debate Topic, Debate Statement, Target Position): the topic
-# reaches the mediator through the participants' initial positions and the
-# conversation itself.
+# debate items (Debate Topic, Debate Statement, Target Position, Participant
+# Initial Positions): the mediator learns about the participants from their
+# profiles and about the topic from the conversation itself.
 prompt:
   - id: 0
     type: TEXT
@@ -12,7 +12,7 @@ prompt:
   - id: 1
     type: TEXT
     text: |
-      Help the participants have a meaningful discussion, given the following summary of their initial opinions:
+      Help the participants have a meaningful discussion, given the following notes about them:
 
   - id: 2
     type: INITIALIZATION_CONTEXT
@@ -45,13 +45,12 @@ initialization_context_prompt:
   - id: 0
     type: TEXT
     text: |
-      Two participants are about to have a discussion. Their initial positions are included in the following answers:
+      Two participants are about to have a discussion. Their profiles:
 
   - id: 1
-    type: CONTEXT
-    context: before
+    type: PARTICIPANT_PROFILES
 
   - id: 2
     type: TEXT
     text: |
-      Summarize their positions.
+      Note anything about them a mediator should keep in mind.

@@ -52,7 +52,8 @@ function PromptBlockLegend({ textOnly, simulationBlocks = [], usingDefaultBlocks
   textOnly?: boolean
   simulationBlocks?: Block[]
   usingDefaultBlocks?: boolean
-  // Leaves out Debate Topic, Debate Statement and Target Position (/mediator).
+  // Leaves out Debate Topic, Debate Statement, Target Position and Participant
+  // Initial Positions, and lists Participant Profiles instead (/mediator).
   hideDebateItems?: boolean
 }) {
   const legend = (bg: string, label: string, dim = false) => (
@@ -70,8 +71,13 @@ function PromptBlockLegend({ textOnly, simulationBlocks = [], usingDefaultBlocks
           {legend('bg-[#fde8c8]', 'Debate Statement')}
           <span>the statement that the participants take a position on</span>
         </>}
-        {legend('bg-[#dce1fd]', 'Participant Initial Positions')}
-        <span>the participants responses to the pre-conversation survey about the debate statement</span>
+        {hideDebateItems ? <>
+          {legend('bg-[#dce1fd]', 'Participant Profiles')}
+          <span>the profile information of the participants</span>
+        </> : <>
+          {legend('bg-[#dce1fd]', 'Participant Initial Positions')}
+          <span>the participants responses to the pre-conversation survey about the debate statement</span>
+        </>}
         {!textOnly && <>
           {legend('bg-[#dce1fd]', 'Conversation Context')}
           <span>the discussion up to this moment</span>
@@ -610,6 +616,7 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
                       blocks={blocks}
                       blocksLoaded={blocksLoaded}
                       hideDebateItems={hideDebateItems}
+                      showParticipantProfiles={hideDebateItems}
                     />
                     {/* <StructuredOutputSchema
                       config={structuredOutputConfig}
@@ -636,6 +643,7 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
                       blocks={blocks}
                       blocksLoaded={blocksLoaded}
                       hideDebateItems={hideDebateItems}
+                      showParticipantProfiles={hideDebateItems}
                     />
 
                   </div>
@@ -652,6 +660,7 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
                       blocksLoaded={blocksLoaded}
                       textOnly={true}
                       hideDebateItems={hideDebateItems}
+                      showParticipantProfiles={hideDebateItems}
                     />
                   </div>
                 ) : null}

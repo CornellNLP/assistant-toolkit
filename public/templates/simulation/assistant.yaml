@@ -38,30 +38,17 @@ prompt:
   - id: 2
     type: TEXT
     text: |
-      You are a private assistant helping one participant in a live discussion about the following:
-
-  # Resolved against the selected simulation's block of the same name; the
-  # description here is only the fallback when that simulation lacks it.
-  - id: 3
-    type: BLOCK
-    name: Debate Topic
-    descriptions:
-      - The topic of the debate.
-
-  - id: 4
-    type: TEXT
-    text: |
       Based on the conversation so far, help them understand the other side's position or think through their own response.
 
-  - id: 5
+  - id: 3
     type: TEXT
     text: |
       The participant is currently drafting the following message (not yet sent):
 
-  - id: 6
+  - id: 4
     type: PARTICIPANT_CHAT_INPUT
 
-  - id: 7
+  - id: 5
     type: CONTEXT
 
 should_respond_context: "current"

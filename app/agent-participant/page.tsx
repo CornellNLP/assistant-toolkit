@@ -871,6 +871,8 @@ export default function AgentParticipantsPage() {
                           prompt={agentParsed?.chatSettings?.initializationPrompt ?? []}
                           stageId=""
                           onUpdate={updateInitializationBlocks}
+                          blocks={blocks}
+                          blocksLoaded={blocksLoaded}
                           showInitializationContext={false}
                           hideDebateAndParticipantBlocks
                         />

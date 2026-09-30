@@ -529,7 +529,7 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
             enabled={authReady}
           />
 
-          <div className="flex items-center justify-end gap-2">
+          {/* <div className="flex items-center justify-end gap-2">
             <select
                 id="tour-submit"
                 defaultValue=""
@@ -544,7 +544,7 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
                 <option value="track1">Track 1</option>
                 <option value="track2">Track 2</option>
             </select>
-          </div>
+          </div> */}
 
           {/* Mediator configuration and prompt editors */}
           <div className="space-y-4">

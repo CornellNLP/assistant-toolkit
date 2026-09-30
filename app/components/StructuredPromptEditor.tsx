@@ -252,7 +252,7 @@ function IconButton({ icon, title, onClick }: {
   )
 }
 
-function AddMenu({ targetArr, textOnly, blocks = [], assistantMode, showInitializationContext, showCharacterContext, showThoughtHistoryContext, hideDebateAndParticipantBlocks }: {
+function AddMenu({ targetArr, textOnly, blocks = [], assistantMode, showInitializationContext, showCharacterContext, showThoughtHistoryContext, hideDebateAndParticipantBlocks, showSimulationBlocks = true, hideDebateItems }: {
   targetArr: PromptItem[]
   textOnly?: boolean
   blocks?: Block[]
@@ -261,6 +261,8 @@ function AddMenu({ targetArr, textOnly, blocks = [], assistantMode, showInitiali
   showCharacterContext?: boolean
   showThoughtHistoryContext?: boolean
   hideDebateAndParticipantBlocks?: boolean
+  showSimulationBlocks?: boolean
+  hideDebateItems?: boolean
 }) {
   const { addItem, locked, promptOutputOptions } = useEditorCtx()
   if (locked) return null
@@ -292,7 +294,7 @@ function AddMenu({ targetArr, textOnly, blocks = [], assistantMode, showInitiali
           <div className={itemClass} role="button" onClick={() => pick({ type: PromptItemType.TEXT, text: '' } as TextPromptItem)}>
             Freeform Text
           </div>
-          {!assistantMode && !hideDebateAndParticipantBlocks && (
+          {!assistantMode && !hideDebateAndParticipantBlocks && !hideDebateItems && (
             <>
               <div className="my-0.5 border-t border-neutral-700/60" />
               <div className={itemClass} role="button" onClick={() => pick({ type: PromptItemType.TEXT, text: '{topic_name}' } as TextPromptItem)}>
@@ -427,7 +429,7 @@ function AddMenu({ targetArr, textOnly, blocks = [], assistantMode, showInitiali
               </div>
             </>
           )} */}
-          {!assistantMode && !hideDebateAndParticipantBlocks && (
+          {!assistantMode && !hideDebateAndParticipantBlocks && !hideDebateItems && (
             <>
               <div className="my-0.5 border-t border-neutral-700/60" />
               <div className={itemClass} role="button" onClick={() => pick({ type: PromptItemType.BIASED } as BiasedPromptItem)}>
@@ -438,6 +440,7 @@ function AddMenu({ targetArr, textOnly, blocks = [], assistantMode, showInitiali
 
           {/* Blocks authored in the Simulation Toolkit. They only appear once
               the simulation holding them has been saved. */}
+          {showSimulationBlocks && (<>
           <div className="my-0.5 border-t border-neutral-700" />
           <div className="px-3 py-1.5 flex items-center justify-between gap-2">
             <span className={`text-[11px] font-semibold uppercase tracking-widest ${blocks.length === 0 ? 'text-neutral-700' : 'text-neutral-600'}`}>
@@ -470,6 +473,7 @@ function AddMenu({ targetArr, textOnly, blocks = [], assistantMode, showInitiali
               </div>
             ))
           )}
+          </>)}
         </div>
       )}
     </div>
@@ -841,6 +845,14 @@ export interface StructuredPromptEditorProps {
   // (Participant Info, Participant Chat Input) — none of which apply to the
   // Agent Participant toolkit.
   hideDebateAndParticipantBlocks?: boolean
+  // Offers the Simulation Toolkit's blocks under "Add item". Off for pages
+  // whose runs never send a simulation (the Reddit assistant), where a block
+  // could only ever run from its stored copy.
+  showSimulationBlocks?: boolean
+  // Hides only the debate items (Debate Topic, Debate Statement, Target
+  // Position), for editors not meant for debates; Participant Initial
+  // Positions and the participant blocks stay.
+  hideDebateItems?: boolean
 }
 
 export function StructuredPromptEditor({
@@ -857,6 +869,8 @@ export function StructuredPromptEditor({
   showThoughtHistoryContext,
   promptOutputOptions = [],
   hideDebateAndParticipantBlocks,
+  showSimulationBlocks,
+  hideDebateItems,
 }: StructuredPromptEditorProps) {
   // A block item carries a copy of its descriptions so the exported template runs
   // without the simulation. Re-editing the block in the Simulation Toolkit would
@@ -910,6 +924,8 @@ export function StructuredPromptEditor({
             showCharacterContext={showCharacterContext}
             showThoughtHistoryContext={showThoughtHistoryContext}
             hideDebateAndParticipantBlocks={hideDebateAndParticipantBlocks}
+            showSimulationBlocks={showSimulationBlocks}
+            hideDebateItems={hideDebateItems}
           />
         </div>
         <div className="p-3">

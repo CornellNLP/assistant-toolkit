@@ -785,7 +785,7 @@ export default function SimulationPage() {
           <SaveSection
             collection="simulations"
             noun="simulation"
-            defaultName="Default Simulation"
+            defaultName="My Simulation"
             content={simulationData}
             onContentChange={setSimulationData}
             getDefaultContent={getDefaultContent}

@@ -40,7 +40,7 @@ export function SaveSection({
   onDirtyChange,
   enabled,
   noun = 'template',
-  defaultName = 'default template',
+  defaultName = 'My Template',
   normalize = content => content,
   onSaved,
   onLoaded,

@@ -9,7 +9,7 @@ import { buildAgent } from './parsers/agent'
 import type { AgentParticipantTemplate } from './parsers/agent'
 import { parseAssistantTemplate, buildAssistant } from './parsers/assistant'
 import type { AgentAssistantTemplate } from './parsers/assistant'
-import { buildTopic, buildStages, buildExperiment } from './parsers/experiment'
+import { buildTopic, buildStages, buildExperiment, type CohortFlags } from './parsers/experiment'
 import { parseSimulationTemplate, applySimulationToChatStage } from './parsers/simulation'
 import { loadTemplate, replaceDefaults, fillAgentStance, fillAgentWithoutStance, agentConfig, createParticipant, excludeNone, resolveBlockItems, pickBlockDescription } from './utils'
 import { url } from 'inspector/promises'
@@ -144,7 +144,9 @@ export async function generate(p1: string, p2: string, experimentTemplatePath: s
                           // One assistant template per seat, in the same order as `seats`, null
                           // where that seat runs unassisted (simulation toolkit). Where it is
                           // given it replaces `assistantTemplateContent` + `agentAssignment`.
-                          assistantTemplateContents?: (string | null)[]) {
+                          assistantTemplateContents?: (string | null)[],
+                          // Chat settings from the request, for runs that send no simulation.
+                          requestFlags: CohortFlags = {}) {
   // Optional: when the simulation toolkit supplies a template, it owns the chat
   // stage description (and the conversation limits) instead of the topic YAML.
   const simulation = simulationTemplateContent
@@ -390,10 +392,10 @@ export async function generate(p1: string, p2: string, experimentTemplatePath: s
   const agents = cohortAgents.flat() 
 
   // Experiment-wide chat settings (assistant replies public, anyone may delete
-  // a message) belong to the simulation; unset ones come from the experiment YAML.
-  const cohortFlags = {
-    publicizeAssistantMessages: simulation?.publicizeAssistantMessages,
-    allowPublicMessageDeletion: simulation?.allowPublicMessageDeletion,
+  // a message): the simulation's own, else the request's, else the experiment YAML.
+  const cohortFlags: CohortFlags = {
+    publicizeAssistantMessages: simulation?.publicizeAssistantMessages ?? requestFlags.publicizeAssistantMessages,
+    allowPublicMessageDeletion: simulation?.allowPublicMessageDeletion ?? requestFlags.allowPublicMessageDeletion,
   }
   const [template, cohortAlias] = buildExperiment(experimentTemplate, topicInfo, stages, stageIdsInOrder, mediatorR1, agents, mode, isSim, assistants, postTitle, postDescription, participantSlots.length, cohortFlags)
   // Nothing to randomize a bias for when the run has no mediator, or when it is a

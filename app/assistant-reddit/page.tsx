@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { onAuthStateChanged, signOut } from 'firebase/auth'
 import { auth } from '../lib/firebase'
@@ -12,8 +12,7 @@ import { MediatorSection } from '../components/MediatorSection'
 import { Nav } from '../components/Nav'
 import { SaveSection } from '../components/SaveSection'
 import { YamlIOSection } from '../components/YamlIOSection'
-import { SimulationBlockPicker } from '../components/SimulationBlockPicker'
-import { useSimulationBlocks, type Block } from '../lib/blocks'
+import { readDraft, writeDraft } from '../lib/drafts'
 import { CMV_POSTS } from './topics'
 
 const idle: ActionState = { status: 'idle', result: null }
@@ -27,10 +26,9 @@ function PromptEditorDescription({ description }: { description: string }) {
   )
 }
 
-function PromptBlockLegend({ simulationBlocks = [], usingDefaultBlocks }: {
-  simulationBlocks?: Block[]
-  usingDefaultBlocks?: boolean
-}) {
+// Reddit runs send no simulation, so the Simulation Toolkit's blocks are not
+// offered here: they could only ever run from the copy an item carries.
+function PromptBlockLegend() {
   const legend = (bg: string, label: string, dim = false) => (
     <span className={`inline-block rounded px-1.5 py-0.5 font-medium whitespace-nowrap justify-self-start ${dim ? 'bg-neutral-800 text-neutral-500' : `text-neutral-900 ${bg}`}`}>{label}</span>
   )
@@ -54,24 +52,10 @@ function PromptBlockLegend({ simulationBlocks = [], usingDefaultBlocks }: {
         <span>the assisted participant's profile info</span>
         {legend('bg-[#dce1fd]', 'Participant Chat Input')}
         <span>the participant's current, unsent chat draft</span>
-        {simulationBlocks.length === 0 ? (
-          <>
-            {legend('', 'Simulation Blocks', true)}
-            <span className="text-neutral-600">Not available yet — define blocks under Block Customization in the Simulation Toolkit first.</span>
-          </>
-        ) : (
-          simulationBlocks.map(block => (
-            <Fragment key={block.name}>
-              {legend('bg-[#e6dcfd]', `${block.name} (Custom Block)`)}
-              <span>Block defined in the Simulation panel</span>
-            </Fragment>
-          ))
-        )}
-        {usingDefaultBlocks && (
-          <p className="col-span-2 text-xs text-neutral-600">
-            More can be defined under Block Customization in the Simulation Toolkit — they'll show up here once saved.
-          </p>
-        )}
+        {legend('bg-[#dce1fd]', 'Latest Assistant Message')}
+        <span>the assistant's previous message to this participant, whether it chose to respond, and when</span>
+        {legend('bg-[#dce1fd]', 'Latest Participant Draft')}
+        <span>the draft the assistant last responded to</span>
       </div>
     </div>
   )
@@ -80,13 +64,37 @@ function PromptBlockLegend({ simulationBlocks = [], usingDefaultBlocks }: {
 const POLL_INTERVAL_MS = 10000
 const MAX_WAIT_TIME_MS = 300000
 
+// Experiment-wide chat settings for test runs. Reddit runs send no simulation
+// to carry them, so they are sent with each run instead. They describe the
+// experiment, not the assistant, so they stay out of the saved template and
+// are only remembered for this browser tab.
+type ChatFlags = { publicizeAssistantMessages: boolean; allowPublicMessageDeletion: boolean }
+const DEFAULT_CHAT_FLAGS: ChatFlags = { publicizeAssistantMessages: true, allowPublicMessageDeletion: true }
+const CHAT_FLAGS_DRAFT = 'assistant-reddit:chat-flags'
+const CHAT_FLAG_FIELDS: { key: keyof ChatFlags; label: string; description: string }[] = [
+  {
+    key: 'publicizeAssistantMessages',
+    label: 'Show assistant replies to everyone',
+    description: 'Assistant replies appear in the group chat for the whole cohort, not only for the participant they help.',
+  },
+  {
+    key: 'allowPublicMessageDeletion',
+    label: 'Let participants delete any message',
+    description: 'Anyone in the cohort can delete any message in the group chat, not only their own.',
+  },
+]
+
 export default function AssistantPage() {
   const router = useRouter()
   const [authReady, setAuthReady] = useState(false)
   const [userEmail, setUserEmail] = useState<string | null>(null)
   const [simQuota, setSimQuota] = useState<{ used: number; limit: number; simMaxWaitTimeMs: number } | null>(null)
 
-  const { blocks, blocksLoaded, usingDefaultBlocks, simulations, selectedId, setSelectedId, error: simulationBlocksError } = useSimulationBlocks()
+  const [chatFlags, setChatFlags] = useState<ChatFlags>(DEFAULT_CHAT_FLAGS)
+  const chatFlagsRestored = useRef(false)
+  useEffect(() => {
+    if (chatFlagsRestored.current) writeDraft<ChatFlags>(CHAT_FLAGS_DRAFT, chatFlags)
+  }, [chatFlags])
 
   const [assistantData, setAssistantData] = useState<string | null>(null)
   const [dirty, setDirty] = useState(false)
@@ -130,6 +138,10 @@ export default function AssistantPage() {
         setAuthReady(true)
         setUserEmail(user.email)
         fetchQuota()
+        if (!chatFlagsRestored.current) {
+          setChatFlags({ ...DEFAULT_CHAT_FLAGS, ...readDraft<Partial<ChatFlags>>(CHAT_FLAGS_DRAFT) })
+          chatFlagsRestored.current = true
+        }
       }
     })
   }, [router])
@@ -269,6 +281,7 @@ export default function AssistantPage() {
           opParticipant,
           p1,
           p2,
+          ...chatFlags,
         }),
       })
       const data = await res.json()
@@ -399,8 +412,6 @@ export default function AssistantPage() {
             </div>
           </div>
 
-          <Nav />
-
           {/* Save / Load */}
           <SaveSection
             collection="assistants-reddit"
@@ -418,13 +429,6 @@ export default function AssistantPage() {
             </div>
             <p className="text-sm text-neutral-500">Here you can edit the prompts that guide your assistant. The <span className="text-neutral-400">Assistant Prompt</span> controls the guidance it sends the participant; the <span className="text-neutral-400">Should Intervene</span> prompt decides whether now is a good time to send it.</p>
 
-            <SimulationBlockPicker
-              simulations={simulations}
-              selectedId={selectedId}
-              onSelect={setSelectedId}
-              error={simulationBlocksError}
-            />
-
             <div className="rounded-lg border border-neutral-800">
               <div className="flex border-b border-neutral-800 bg-neutral-900/60">
                 {(['response', 'should-respond'] as const).map(tab => (
@@ -441,29 +445,27 @@ export default function AssistantPage() {
                 {activePromptTab === 'response' ? (
                   <div className="space-y-4">
                     <PromptEditorDescription description="A prompt that determines how your assistant privately helps a single participant during the discussion. The assistant only responds to that participant — it never posts to the shared conversation. It generates a message every time the Should Intervene Prompt decides the assistant should respond." />
-                    <PromptBlockLegend simulationBlocks={blocks} usingDefaultBlocks={usingDefaultBlocks} />
+                    <PromptBlockLegend />
                     <StructuredPromptEditor
                       label="Assistant Prompt Editor"
                       prompt={(assistantParsed?.prompt as PromptItem[]) ?? []}
                       stageId=""
                       onUpdate={updateAssistantPrompt}
                       assistantMode="reddit"
-                      blocks={blocks}
-                      blocksLoaded={blocksLoaded}
+                      showSimulationBlocks={false}
                     />
                   </div>
                 ) : (
                   <div className="space-y-4">
                     <PromptEditorDescription description="Your assistant uses this prompt after each update to the participant's draft or the conversation to decide whether this is a good time to offer guidance. When the response is true, the assistant uses the Assistant Prompt to generate a message; when false, it displays 'Nothing further to add at this point in the conversation.''." />
-                    <PromptBlockLegend simulationBlocks={blocks} usingDefaultBlocks={usingDefaultBlocks} />
+                    <PromptBlockLegend />
                     <StructuredPromptEditor
                       label="Should Intervene Prompt Editor"
                       prompt={(assistantParsed?.should_respond_prompt as PromptItem[]) ?? []}
                       stageId=""
                       onUpdate={updateShouldRespondPrompt}
                       assistantMode="reddit"
-                      blocks={blocks}
-                      blocksLoaded={blocksLoaded}
+                      showSimulationBlocks={false}
                     />
                   </div>
                 )}
@@ -498,6 +500,24 @@ export default function AssistantPage() {
           <p className="text-xs text-neutral-500">
             Names follow (participant 1 - participant 2), e.g. "human-agent" means participant 1 is human and participant 2 is an agent participant.
           </p>
+          <div className="space-y-2">
+            {CHAT_FLAG_FIELDS.map(({ key, label, description }) => (
+              <div key={key} className="space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    id={`chat-flag-${key}`}
+                    checked={chatFlags[key]}
+                    onChange={e => setChatFlags(prev => ({ ...prev, [key]: e.target.checked }))}
+                    disabled={busy}
+                    className="accent-neutral-400 w-4 h-4 cursor-pointer"
+                  />
+                  <label htmlFor={`chat-flag-${key}`} className="text-sm font-medium text-neutral-400 cursor-pointer">{label}</label>
+                </div>
+                <p className="pl-6 text-xs text-neutral-600">{description}</p>
+              </div>
+            ))}
+          </div>
           <div className="space-y-3">
             <ActionButton
               label="Create (human-agent)"

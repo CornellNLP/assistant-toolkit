@@ -1,6 +1,6 @@
 import { adminAuth, adminDb } from '../../lib/firebaseAdmin'
 
-export const ALLOWED_COLLECTIONS = ['mediators', 'assistants', 'assistants-reddit', 'assistants-simulation', 'agents', 'simulations'] as const
+export const ALLOWED_COLLECTIONS = ['mediators', 'assistants', 'assistants-reddit'] as const
 export type TemplateCollection = typeof ALLOWED_COLLECTIONS[number]
 
 export function isAllowedCollection(c: unknown): c is TemplateCollection {
@@ -24,11 +24,10 @@ export function templatesRef(email: string, collection: TemplateCollection) {
 
 export const DUPLICATE_NAME_ERROR = 'duplicate_name'
 
-// Agents and assistants are referenced by id from simulation YAML, so their ids
-// are readable: the document id is a slug of the name, fixed at creation (a
-// rename keeps it, so saved simulations keep resolving), and the template's own
-// persona.id mirrors it. Mediators and simulations keep auto ids.
-const SLUG_ID_COLLECTIONS: readonly TemplateCollection[] = ['agents', 'assistants', 'assistants-reddit', 'assistants-simulation']
+// Assistants get readable ids: the document id is a slug of the name, fixed at
+// creation (a rename keeps it), and the template's own persona.id mirrors it.
+// Mediators keep auto ids.
+const SLUG_ID_COLLECTIONS: readonly TemplateCollection[] = ['assistants', 'assistants-reddit']
 
 export function usesSlugIds(collection: TemplateCollection) {
   return SLUG_ID_COLLECTIONS.includes(collection)
@@ -45,7 +44,7 @@ export function slugIdFor(name: string, collection: TemplateCollection) {
     .replace(/^-+|-+$/g, '')
     .slice(0, 60)
     .replace(/-+$/, '')
-  return slug || (collection === 'agents' ? 'agent' : 'assistant')
+  return slug || 'assistant'
 }
 
 // Writes `id` into the template's persona.id. Content that is not a JSON object

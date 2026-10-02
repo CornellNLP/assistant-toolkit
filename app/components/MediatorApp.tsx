@@ -1,6 +1,6 @@
 'use client'
 
-import { Fragment, useState, useEffect, useMemo, useRef, useCallback } from 'react'
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { onAuthStateChanged, signOut } from 'firebase/auth'
 import { auth } from '../lib/firebase'
@@ -10,15 +10,12 @@ import { TOPICS } from '../lib/topics'
 import { ApiKeyType, API_KEY_TYPE_LABELS, REASONING_LEVEL_OPTIONS } from '../lib/types'
 import { StructuredPromptEditor, PromptItemType, type PromptItem, type TextPromptItem } from '../components/StructuredPromptEditor'
 import { MediatorSection } from '../components/MediatorSection'
-import { Nav } from './Nav'
 import { ActionButton, ResultBox, type ActionState } from '../components/ExperimentActions'
 import { SaveSection } from './SaveSection'
 import { YamlIOSection } from './YamlIOSection'
 import { create } from 'domain'
 import { StructuredOutputSchema, type StructuredOutputConfig } from '../components/StructuredOutputSchema'
 import { startTour } from '../lib/tour'
-import { SimulationBlockPicker } from './SimulationBlockPicker'
-import { useSimulationBlocks, type Block } from '../lib/blocks'
 import { text } from 'stream/consumers'
 import { TOPIC_SETS } from '../lib/topicSets'
 
@@ -48,10 +45,8 @@ function PromptEditorDescription({ description }: { description?: string }) {
 }
 
 
-function PromptBlockLegend({ textOnly, simulationBlocks = [], usingDefaultBlocks, hideDebateItems }: {
+function PromptBlockLegend({ textOnly, hideDebateItems }: {
   textOnly?: boolean
-  simulationBlocks?: Block[]
-  usingDefaultBlocks?: boolean
   // Leaves out Debate Topic, Debate Statement, Target Position and Participant
   // Initial Positions, and lists Participant Profiles instead (/mediator).
   hideDebateItems?: boolean
@@ -96,24 +91,6 @@ function PromptBlockLegend({ textOnly, simulationBlocks = [], usingDefaultBlocks
           {legend('bg-[#f08673]', 'Target Position')}
           <span>[Use only for the Covert Influence Task] the direction of the covert influence (either Supporting or Opposing the debate statement)</span>
         </>}
-        {simulationBlocks.length === 0 ? (
-          <>
-            {legend('', 'Simulation Blocks', true)}
-            <span className="text-neutral-600">Not available yet — define blocks under Block Customization in the Simulation Toolkit first.</span>
-          </>
-        ) : (
-          simulationBlocks.map(block => (
-            <Fragment key={block.name}>
-              {legend('bg-[#e6dcfd]', `${block.name} (Custom Block)`)}
-              <span>Block defined in the Simulation panel</span>
-            </Fragment>
-          ))
-        )}
-        {usingDefaultBlocks && (
-          <p className="col-span-2 text-xs text-neutral-600">
-            More can be defined under Block Customization in the Simulation Toolkit — they'll show up here once saved.
-          </p>
-        )}
       </div>
     </div>
   )
@@ -140,11 +117,6 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
   // items from its editors and legend and starts from a template without them.
   // The in-class variant still runs debate topic sets and keeps them.
   const hideDebateItems = variant === 'default'
-
-  // Blocks are authored in the Simulation Toolkit and live inside the saved
-  // simulation, so they are read-only here. The in-class variant has no
-  // simulation toolkit behind it, which is why the picker below is hidden there.
-  const { blocks, blocksLoaded, usingDefaultBlocks, simulations, selectedId, setSelectedId, error: simulationBlocksError } = useSimulationBlocks()
 
   async function fetchQuota() {
     try {
@@ -508,8 +480,6 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
             </div>
           </div>
 
-          {variant === 'default' && <Nav />}
-
           {/* tutorial video banner */}
           <div className="rounded-md border border-blue-400/50 bg-blue-500/10 overflow-hidden text-sm text-blue-200">
             <button
@@ -573,15 +543,6 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
               <p className="text-sm text-neutral-500">Here you can edit the prompts to guide the mediator's interventions. The <span className="text-neutral-400">Intervention Prompt</span> controls what the mediator says; the <span className="text-neutral-400">Should Intervene</span> prompts the LLM to return true/false on whether it should intervene. The <span className="text-neutral-400">Initialization Prompt</span> instructs the LLM to gather information that can be used in discussions. Take a look at our <WorkedExamplesLink /> to see how these work. <a href="https://www.promptingguide.ai/" target="_blank" className="underline hover:text-neutral-300">Learn more about prompt engineering.</a></p>
             </div>
 
-            {variant === 'default' && (
-              <SimulationBlockPicker
-                simulations={simulations}
-                selectedId={selectedId}
-                onSelect={setSelectedId}
-                error={simulationBlocksError}
-              />
-            )}
-
             <div className="rounded-lg border border-neutral-800">
               <div className="flex border-b border-neutral-800 bg-neutral-900/60">
                 {(['response', 'should-respond', 'initialization'] as const).map(tab => (
@@ -599,7 +560,7 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
                 {activePromptTab === 'response' ? (
                   <div className="space-y-4">
                     <PromptEditorDescription description="A prompt that determines your mediator's interventions during the discussion.  The mediator uses this prompt to generate a message that is sent to participants.  It does so every time the Should Intervene Prompt decides the mediator should intervene." />
-                    <PromptBlockLegend simulationBlocks={blocks} usingDefaultBlocks={usingDefaultBlocks} hideDebateItems={hideDebateItems} />
+                    <PromptBlockLegend hideDebateItems={hideDebateItems} />
                     {/* <MediatorSection
                       title="Response Settings"
                       mediatorParsed={mediatorParsed}
@@ -613,8 +574,6 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
                       prompt={(mediatorParsed?.prompt as PromptItem[]) ?? []}
                       stageId=""
                       onUpdate={updateMediatorPrompt}
-                      blocks={blocks}
-                      blocksLoaded={blocksLoaded}
                       hideDebateItems={hideDebateItems}
                       showParticipantProfiles={hideDebateItems}
                     />
@@ -626,7 +585,7 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
                 ) : activePromptTab === 'should-respond' ? (
                   <div className="space-y-4">
                     <PromptEditorDescription description="Your mediator uses this prompt after each message in the discussion to decide whether this is a good time to intervene.  When the response is true, the mediator uses the Intervention Prompt to generate a message and sends it to the participants. When the response is false the mediator waits for the next participant message. Message sent automatically when the conversation begins." />
-                    <PromptBlockLegend simulationBlocks={blocks} usingDefaultBlocks={usingDefaultBlocks} hideDebateItems={hideDebateItems} />
+                    <PromptBlockLegend hideDebateItems={hideDebateItems} />
                     {/* <MediatorSection
                       title="ShouldRespond Settings"
                       mediatorParsed={mediatorParsed}
@@ -640,8 +599,6 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
                       prompt={(mediatorParsed?.should_respond_prompt as PromptItem[]) ?? []}
                       stageId=""
                       onUpdate={updateShouldRespondPrompt}
-                      blocks={blocks}
-                      blocksLoaded={blocksLoaded}
                       hideDebateItems={hideDebateItems}
                       showParticipantProfiles={hideDebateItems}
                     />
@@ -650,14 +607,12 @@ export default function MediatorApp({ variant, home = '/' }: { variant: string; 
                 ) : activePromptTab === 'initialization' ? (
                   <div className="space-y-4">
                         <PromptEditorDescription description="A prompt that is run at the start of the conversation to gather information about the topic, participants, or anything else. This is information that can subsequently be accessed by your mediator during the conversation. (via the Initialization Result variable)." />
-                    <PromptBlockLegend textOnly simulationBlocks={blocks} usingDefaultBlocks={usingDefaultBlocks} hideDebateItems={hideDebateItems} />
+                    <PromptBlockLegend textOnly hideDebateItems={hideDebateItems} />
                     <StructuredPromptEditor
                       label="Initialization Prompt Editor"
                       prompt={(mediatorParsed?.initialization_context_prompt ?? mediatorParsed?.preload_context_prompt) as PromptItem[] ?? []}
                       stageId=""
                       onUpdate={updateInitializationContextPrompt}
-                      blocks={blocks}
-                      blocksLoaded={blocksLoaded}
                       textOnly={true}
                       hideDebateItems={hideDebateItems}
                       showParticipantProfiles={hideDebateItems}

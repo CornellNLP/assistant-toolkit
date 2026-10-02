@@ -1,5 +1,4 @@
 import { CMV_RULES } from '../../../assistant-reddit/topics'
-import { blockDescriptions } from '../utils'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -48,22 +47,7 @@ export interface InitializationContextPromptItem {
   type: 'INITIALIZATION_CONTEXT'
 }
 
-export interface PromptOutputPromptItem {
-  type: 'PROMPT_OUTPUT'
-  promptId: string
-}
-
-export interface CharacterContextPromptItem {
-  type: 'CHARACTER_CONTEXT'
-  stageIds: string[]
-}
-
-export interface ThoughtHistoryContextPromptItem {
-  type: 'THOUGHT_HISTORY_CONTEXT'
-  stageIds: string[]
-}
-
-export type PromptItem = StageContextItem | TextPromptItem | ProfileInfoPromptItem | ParticipantInfoPromptItem | ParticipantChatInputPromptItem | LatestAssistantMessagePromptItem | LatestParticipantDraftPromptItem | ProfileContextPromptItem | InitializationContextPromptItem | PromptOutputPromptItem | CharacterContextPromptItem | ThoughtHistoryContextPromptItem
+export type PromptItem = StageContextItem | TextPromptItem | ProfileInfoPromptItem | ParticipantInfoPromptItem | ParticipantChatInputPromptItem | LatestAssistantMessagePromptItem | LatestParticipantDraftPromptItem | ProfileContextPromptItem | InitializationContextPromptItem
 
 export interface StructuredOutputSchemaProperty {
   name: string
@@ -166,22 +150,17 @@ export function buildPromptItems(tpl: Record<string, any>, stageId: string, stag
       items.push({ type: 'PROFILE_CONTEXT' })
     } else if (kind === 'INITIALIZATION_CONTEXT' || kind === 'PRELOADED_CONTEXT') {
       items.push({ type: 'INITIALIZATION_CONTEXT' })
-    } else if (kind === 'PROMPT_OUTPUT') {
-      items.push({ type: 'PROMPT_OUTPUT', promptId: promptItem.promptId })
-    } else if (kind === 'CHARACTER_CONTEXT') {
-      items.push({ type: 'CHARACTER_CONTEXT', stageIds: [stageId] })
-    } else if (kind === 'THOUGHT_HISTORY_CONTEXT') {
-      items.push({ type: 'THOUGHT_HISTORY_CONTEXT', stageIds: [stageId] })
     } else if (kind === 'TEXT') {
       items.push({ type: 'TEXT', text: promptItem.text })
     } else if (kind === 'BIASED') {
       items.push({ type: 'TEXT', text: '{{target_bias_position}}', })
     } else if (kind === 'BLOCK') {
-      // resolveBlockItems normally rewrites these against the live simulation
-      // before we get here, drawing one of the block's options; fall back to the
-      // copy the item carries, whose first option keeps this path deterministic.
+      // A custom block from the retired Simulation Toolkit, still present in
+      // prompts saved back then. It runs from the copy it carries: the first
+      // non-empty option (or the older single `description` string).
       const name = String(promptItem.name ?? '')
-      const description = blockDescriptions(promptItem).find((d) => d.trim() !== '') ?? ''
+      const options: unknown[] = Array.isArray(promptItem.descriptions) ? promptItem.descriptions : [promptItem.description]
+      const description = options.map((d) => String(d ?? '')).find((d) => d.trim() !== '') ?? ''
       items.push({ type: 'TEXT', text: description ? `${name}: ${description}` : name })
     } else if (kind === 'POST_TITLE') {
       items.push({ type: 'TEXT', text: `Title: ${postTitle ?? ''}` })
@@ -195,7 +174,7 @@ export function buildPromptItems(tpl: Record<string, any>, stageId: string, stag
     } else if (kind === 'ARTICLE_PAGE') {
       items.push({ type: 'TEXT', text: `${postTitle ?? ''}\n${postDescription ?? ''}` })
     } else {
-      throw new Error(`Unknown prompt item type ${kind}. Must be 'CONTEXT', 'PROFILE_INFO', 'PARTICIPANT_INFO', 'PARTICIPANT_CHAT_INPUT', 'LATEST_ASSISTANT_MESSAGE', 'LATEST_PARTICIPANT_DRAFT', 'PARTICIPANT_PROFILES', 'PROFILE_CONTEXT', 'INITIALIZATION_CONTEXT', 'PRELOADED_CONTEXT', 'PROMPT_OUTPUT', 'CHARACTER_CONTEXT', 'THOUGHT_HISTORY_CONTEXT', 'BIASED', 'BLOCK', 'POST_TITLE', 'POST_DESCRIPTION', 'RULE', 'PARTICIPANT_ROLE', 'ARTICLE_PAGE' or 'TEXT'.`)
+      throw new Error(`Unknown prompt item type ${kind}. Must be 'CONTEXT', 'PROFILE_INFO', 'PARTICIPANT_INFO', 'PARTICIPANT_CHAT_INPUT', 'LATEST_ASSISTANT_MESSAGE', 'LATEST_PARTICIPANT_DRAFT', 'PARTICIPANT_PROFILES', 'PROFILE_CONTEXT', 'INITIALIZATION_CONTEXT', 'PRELOADED_CONTEXT', 'BIASED', 'BLOCK', 'POST_TITLE', 'POST_DESCRIPTION', 'RULE', 'PARTICIPANT_ROLE', 'ARTICLE_PAGE' or 'TEXT'.`)
     }
   }
   return [...items, ...stageSpecificPrompts]

@@ -7,13 +7,10 @@ import { onAuthStateChanged, signInWithPopup, signOut, type User } from 'firebas
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { auth, db, googleProvider } from '../lib/firebase'
 
-// The toolkits a signed-in user can open: the Nav's tabs, plus the Reddit and
-// WP assistant pages, which have no tab and are only reached from here.
+// The toolkits a signed-in user can open. Each is independent, with no links
+// to the others, so this hub is the only place they are listed together.
 const TOOLKITS = [
-  { href: '/simulation', label: 'Simulation', description: 'Pair agents, mediators and assistants, then create or simulate conversations.' },
   { href: '/mediator', label: 'Mediator', description: 'Build and test mediator prompts.' },
-  { href: '/agent-participant', label: 'Agent Participant', description: 'Design the agents that take part in a conversation.' },
-  { href: '/assistant', label: 'Agent Assistant', description: 'Build assistants that privately help a participant, tested against a simulation.' },
   { href: '/assistant-reddit', label: 'Agent Assistant - Reddit', description: 'Assistants for ChangeMyView-style Reddit threads.' },
   { href: '/assistant-wp', label: 'Agent Assistant - WP', description: 'Assistants for Wikipedia article discussions.' },
 ] as const
@@ -62,7 +59,7 @@ function LoginContent() {
     <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col">
       <main className="flex-1 flex flex-col items-center justify-center px-8 py-12 space-y-8">
         <div className="text-center space-y-2">
-          <h1 className="text-4xl font-semibold tracking-tight">Simulation Toolkit</h1>
+          <h1 className="text-4xl font-semibold tracking-tight">Assistant Toolkits</h1>
           <p className="text-base text-neutral-500">
             {user ? 'Choose a toolkit to open.' : 'Sign in to explore the toolkit.'}
           </p>

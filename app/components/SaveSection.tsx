@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { auth } from '../lib/firebase'
 import { API_BASE } from '../lib/config'
 import { TemplateNameModal } from './TemplateNameModal'
-import { useAutoSave, useSaveOnLeave } from '../lib/saveOnLeave'
+import { useAutoSave } from '../lib/autoSave'
 import { readDraft, writeDraft } from '../lib/drafts'
 
 // What survives navigating away: which template was open, plus its unsaved
@@ -14,7 +14,7 @@ type SaveSectionDraft = { activeId: string; content: string | null }
 export type SavedTemplateItem = { id: string; name: string; updatedAt: string | null }
 
 export interface SaveSectionProps {
-  collection: 'mediators' | 'assistants' | 'assistants-reddit' | 'assistants-simulation' | 'agents' | 'simulations'
+  collection: 'mediators' | 'assistants' | 'assistants-reddit'
   content: string | null
   onContentChange: (content: string) => void
   getDefaultContent: () => Promise<string>
@@ -151,7 +151,7 @@ export function SaveSection({
     if (res.ok) {
       const data = await res.json()
       onSaved?.()
-      // The server may rewrite the content (agents and assistants get their
+      // The server may rewrite the content (assistants get their
       // persona.id set to the new id), so take its copy over ours.
       return { ok: true, id: data.id, name: data.name, content: data.content ?? seedContent }
     }
@@ -190,9 +190,6 @@ export function SaveSection({
 
   // Saves the open template a moment after the last edit.
   useAutoSave(content, isDirty && !!activeId && !saving, () => handleSaveContent({ quiet: true }))
-
-  // Switching tabs through the Nav saves the open template first.
-  useSaveOnLeave(async () => (isDirty && activeId ? handleSaveContent({ quiet: true }) : true))
 
   async function handleSwitch(id: string) {
     if (id === activeId) return

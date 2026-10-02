@@ -1,7 +1,6 @@
 'use client'
 
 import { createContext, useContext, useState, useRef, useEffect } from 'react'
-import { blockDescriptions, describeBlock, type Block } from '../lib/blocks'
 
 // ============================================================
 // Types
@@ -15,9 +14,6 @@ export enum PromptItemType {
   PARTICIPANT_CHAT_INPUT = 'PARTICIPANT_CHAT_INPUT',
   INITIALIZATION_CONTEXT = 'INITIALIZATION_CONTEXT',
   PRELOADED_CONTEXT='PRELOADED_CONTEXT',
-  PROMPT_OUTPUT = 'PROMPT_OUTPUT',
-  CHARACTER_CONTEXT = 'CHARACTER_CONTEXT',
-  THOUGHT_HISTORY_CONTEXT = 'THOUGHT_HISTORY_CONTEXT',
   BIASED = 'BIASED',
   TOPIC_NAME = 'TOPIC_NAME',
   BLOCK = 'BLOCK',
@@ -90,19 +86,6 @@ export interface InitializationContextPromptItem extends PromptItem {
   type: PromptItemType.INITIALIZATION_CONTEXT
 }
 
-export interface PromptOutputPromptItem extends PromptItem {
-  type: PromptItemType.PROMPT_OUTPUT
-  promptId: string
-}
-
-export interface CharacterContextPromptItem extends PromptItem {
-  type: PromptItemType.CHARACTER_CONTEXT
-}
-
-export interface ThoughtHistoryContextPromptItem extends PromptItem {
-  type: PromptItemType.THOUGHT_HISTORY_CONTEXT
-}
-
 // Wikipedia Specific
 export interface ArticlePagePromptItem extends PromptItem {
   type: PromptItemType.ARTICLE_PAGE
@@ -152,19 +135,12 @@ export interface BiasedPromptItem extends PromptItem {
   type: PromptItemType.BIASED
 }
 
-// A block authored in the Simulation Toolkit's Block Customization panel. The
-// descriptions are copied in alongside the name so an exported template still
-// carries the text: a run launched from the mediator toolkit sends no
-// simulation, so there is nothing to look the name up in.
-//
-// A block may offer several alternative descriptions, one of which is drawn at
-// random per experiment, so the copy is the whole list. Items saved before that
-// carry a single `description` string instead — read them through
-// `blockDescriptions`, which folds both shapes into a list.
-export interface BlockPromptItem extends PromptItem {
+// Custom blocks came from the retired Simulation Toolkit. Prompts saved back
+// then can still hold one; it runs as plain text from the copy it carries
+// (see buildPromptItems), and the editor shows it only so it can be removed.
+export interface LegacyBlockPromptItem extends PromptItem {
   type: PromptItemType.BLOCK
   name: string
-  descriptions: string[]
 }
 
 export interface PromptItemUpdate {
@@ -214,10 +190,10 @@ function treeReorder(root: PromptItem[], targetArr: PromptItem[], from: number, 
 // Editor context
 // ============================================================
 
-type AssistantMode = 'wp' | 'reddit' | 'simulation'
+type AssistantMode = 'wp' | 'reddit'
 
-// Display names for the participant blocks. The /assistant and Reddit editors
-// use the newer names; WP, the mediator and the agent editor keep the old ones.
+// Display names for the participant blocks. The Reddit editor uses the newer
+// names; WP and the mediator keep the old ones.
 // Only the label changes — the stored item type stays the same everywhere.
 const RENAMED_LABELS: Partial<Record<string, string>> = {
   [PromptItemType.PARTICIPANT_INFO]: 'Profile Info',
@@ -233,21 +209,17 @@ const OLD_LABELS: Partial<Record<string, string>> = {
 }
 
 function participantBlockLabel(type: PromptItemType, assistantMode?: AssistantMode): string {
-  const renamed = assistantMode === 'simulation' || assistantMode === 'reddit'
-  return (renamed ? RENAMED_LABELS : OLD_LABELS)[type] ?? type
+  return (assistantMode === 'reddit' ? RENAMED_LABELS : OLD_LABELS)[type] ?? type
 }
 
 interface EditorCtx {
   assistantMode?: AssistantMode
   locked: boolean
-  blocks: Block[]
-  blocksLoaded?: boolean
   updateItem: (item: PromptItem, updates: PromptItemUpdate) => void
   addItem: (targetArr: PromptItem[], newItem: PromptItem) => void
   deleteItem: (targetArr: PromptItem[], index: number) => void
   moveItem: (targetArr: PromptItem[], index: number, dir: number) => void
   reorderItem: (targetArr: PromptItem[], from: number, to: number) => void
-  promptOutputOptions: { id: string; label: string }[]
 }
 
 const EditorContext = createContext<EditorCtx | null>(null)
@@ -283,20 +255,14 @@ function IconButton({ icon, title, onClick }: {
   )
 }
 
-function AddMenu({ targetArr, textOnly, blocks = [], assistantMode, showInitializationContext, showCharacterContext, showThoughtHistoryContext, hideDebateAndParticipantBlocks, showSimulationBlocks = true, hideDebateItems, showParticipantProfiles }: {
+function AddMenu({ targetArr, textOnly, assistantMode, hideDebateItems, showParticipantProfiles }: {
   targetArr: PromptItem[]
   textOnly?: boolean
-  blocks?: Block[]
   assistantMode?: AssistantMode
-  showInitializationContext?: boolean
-  showCharacterContext?: boolean
-  showThoughtHistoryContext?: boolean
-  hideDebateAndParticipantBlocks?: boolean
-  showSimulationBlocks?: boolean
   hideDebateItems?: boolean
   showParticipantProfiles?: boolean
 }) {
-  const { addItem, locked, promptOutputOptions } = useEditorCtx()
+  const { addItem, locked } = useEditorCtx()
   if (locked) return null
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
@@ -326,7 +292,7 @@ function AddMenu({ targetArr, textOnly, blocks = [], assistantMode, showInitiali
           <div className={itemClass} role="button" onClick={() => pick({ type: PromptItemType.TEXT, text: '' } as TextPromptItem)}>
             Freeform Text
           </div>
-          {!assistantMode && !hideDebateAndParticipantBlocks && !hideDebateItems && (
+          {!assistantMode && !hideDebateItems && (
             <>
               <div className="my-0.5 border-t border-neutral-700/60" />
               <div className={itemClass} role="button" onClick={() => pick({ type: PromptItemType.TEXT, text: '{topic_name}' } as TextPromptItem)}>
@@ -366,7 +332,7 @@ function AddMenu({ targetArr, textOnly, blocks = [], assistantMode, showInitiali
               </div>
             </>
           )}
-          {!assistantMode && !hideDebateAndParticipantBlocks && !hideDebateItems && (
+          {!assistantMode && !hideDebateItems && (
             <>
               <div className="my-0.5 border-t border-neutral-700/60" />
               <div className={itemClass} role="button" onClick={() => pick({ type: PromptItemType.CONTEXT, context: 'before' } as ContextPromptItem)}>
@@ -396,18 +362,14 @@ function AddMenu({ targetArr, textOnly, blocks = [], assistantMode, showInitiali
                   </div>
                 </>
               )}
-              {!hideDebateAndParticipantBlocks && (
-                <>
-                  <div className="my-0.5 border-t border-neutral-700/60" />
-                  <div className={itemClass} role="button" onClick={() => pick({ type: PromptItemType.PARTICIPANT_INFO } as ParticipantInfoPromptItem)}>
-                    {participantBlockLabel(PromptItemType.PARTICIPANT_INFO, assistantMode)}
-                  </div>
-                  <div className="my-0.5 border-t border-neutral-700/60" />
-                  <div className={itemClass} role="button" onClick={() => pick({ type: PromptItemType.PARTICIPANT_CHAT_INPUT } as ParticipantChatInputPromptItem)}>
-                    {participantBlockLabel(PromptItemType.PARTICIPANT_CHAT_INPUT, assistantMode)}
-                  </div>
-                </>
-              )}
+              <div className="my-0.5 border-t border-neutral-700/60" />
+              <div className={itemClass} role="button" onClick={() => pick({ type: PromptItemType.PARTICIPANT_INFO } as ParticipantInfoPromptItem)}>
+                {participantBlockLabel(PromptItemType.PARTICIPANT_INFO, assistantMode)}
+              </div>
+              <div className="my-0.5 border-t border-neutral-700/60" />
+              <div className={itemClass} role="button" onClick={() => pick({ type: PromptItemType.PARTICIPANT_CHAT_INPUT } as ParticipantChatInputPromptItem)}>
+                {participantBlockLabel(PromptItemType.PARTICIPANT_CHAT_INPUT, assistantMode)}
+              </div>
               {assistantMode && (
                 <>
                   <div className="my-0.5 border-t border-neutral-700/60" />
@@ -420,43 +382,12 @@ function AddMenu({ targetArr, textOnly, blocks = [], assistantMode, showInitiali
                   </div>
                 </>
               )}
-              {!assistantMode && showInitializationContext !== false && (
+              {!assistantMode && (
                 <>
                   <div className="my-0.5 border-t border-neutral-700/60" />
                   <div className={itemClass} role="button" onClick={() => pick({ type: PromptItemType.INITIALIZATION_CONTEXT } as InitializationContextPromptItem)}>
                     Initialization Result
                   </div>
-                </>
-              )}
-              {!assistantMode && showCharacterContext && (
-                <>
-                  <div className="my-0.5 border-t border-neutral-700/60" />
-                  <div className={itemClass} role="button" onClick={() => pick({ type: PromptItemType.CHARACTER_CONTEXT } as CharacterContextPromptItem)}>
-                    Character
-                  </div>
-                </>
-              )}
-              {!assistantMode && showThoughtHistoryContext && (
-                <>
-                  <div className="my-0.5 border-t border-neutral-700/60" />
-                  <div className={itemClass} role="button" onClick={() => pick({ type: PromptItemType.THOUGHT_HISTORY_CONTEXT } as ThoughtHistoryContextPromptItem)}>
-                    Thought History
-                  </div>
-                </>
-              )}
-              {!assistantMode && promptOutputOptions.length > 0 && (
-                <>
-                  <div className="my-0.5 border-t border-neutral-700/60" />
-                  {promptOutputOptions.map(opt => (
-                    <div
-                      key={opt.id}
-                      className={itemClass}
-                      role="button"
-                      onClick={() => pick({ type: PromptItemType.PROMPT_OUTPUT, promptId: opt.id } as PromptOutputPromptItem)}
-                    >
-                      Output: {opt.label}
-                    </div>
-                  ))}
                 </>
               )}
             </>
@@ -469,7 +400,7 @@ function AddMenu({ targetArr, textOnly, blocks = [], assistantMode, showInitiali
               </div>
             </>
           )} */}
-          {!assistantMode && !hideDebateAndParticipantBlocks && !hideDebateItems && (
+          {!assistantMode && !hideDebateItems && (
             <>
               <div className="my-0.5 border-t border-neutral-700/60" />
               <div className={itemClass} role="button" onClick={() => pick({ type: PromptItemType.BIASED } as BiasedPromptItem)}>
@@ -478,42 +409,6 @@ function AddMenu({ targetArr, textOnly, blocks = [], assistantMode, showInitiali
             </>
           )}
 
-          {/* Blocks authored in the Simulation Toolkit. They only appear once
-              the simulation holding them has been saved. */}
-          {showSimulationBlocks && (<>
-          <div className="my-0.5 border-t border-neutral-700" />
-          <div className="px-3 py-1.5 flex items-center justify-between gap-2">
-            <span className={`text-[11px] font-semibold uppercase tracking-widest ${blocks.length === 0 ? 'text-neutral-700' : 'text-neutral-600'}`}>
-              Simulation Blocks
-            </span>
-            {blocks.length === 0 && (
-              <span className="text-[10px] font-medium normal-case tracking-normal text-neutral-600 bg-neutral-800 rounded px-1.5 py-0.5">
-                Not available
-              </span>
-            )}
-          </div>
-          {blocks.length === 0 ? (
-            <div className="px-3 pb-2 max-w-56 text-xs text-neutral-700">
-              Only available once blocks are defined under Block Customization in the Simulation Toolkit and the simulation is saved.
-            </div>
-          ) : (
-            blocks.map(block => (
-              <div
-                key={block.name}
-                className={itemClass}
-                role="button"
-                title={describeBlock(block)}
-                onClick={() => pick({
-                  type: PromptItemType.BLOCK,
-                  name: block.name,
-                  descriptions: blockDescriptions(block),
-                } as BlockPromptItem)}
-              >
-                {block.name}
-              </div>
-            ))
-          )}
-          </>)}
         </div>
       )}
     </div>
@@ -546,53 +441,13 @@ function TextItemEditor({ item }: { item: TextPromptItem }) {
   )
 }
 
-// The name is the reference; the descriptions are only a fallback copy, so the
-// chip shows whichever options the simulation currently holds. A block the
-// simulation no longer defines is flagged rather than dropped — the prompt still
-// runs on the copy it carries.
-function BlockItemEditor({ item }: { item: BlockPromptItem }) {
-  const { blocks, blocksLoaded } = useEditorCtx()
-  const live = blocks.find(b => b.name === item.name)
-  // Without a load signal from the caller, fall back to only flagging when the
-  // simulation has blocks, so nothing is flagged while they are still loading.
-  const missing = (blocksLoaded ?? blocks.length > 0) && !live
-  const options = blockDescriptions(live ?? item).filter(d => d.trim() !== '')
-
+function LegacyBlockItemEditor({ item }: { item: LegacyBlockPromptItem }) {
   return (
     <div
-      title={missing ? undefined : describeBlock(live ?? item)}
-      className={`flex items-center gap-1.5 cursor-default rounded bg-[#e6dcfd] px-3 py-1.5 text-sm font-medium text-neutral-900 ${missing ? 'ring-2 ring-amber-500' : ''}`}
+      title="Custom blocks are no longer supported. This prompt still runs with the text saved here, but the block can't be edited — remove it and use freeform text instead."
+      className="cursor-default rounded bg-neutral-700 px-3 py-1.5 text-sm font-medium text-neutral-300"
     >
-      {missing && (
-        <span className="group relative flex items-center">
-          <span
-            aria-label="Block deleted from simulation"
-            className="flex h-6 w-6 items-center justify-center rounded-full bg-amber-500 text-base font-bold leading-none text-neutral-900"
-          >
-            !
-          </span>
-          <span
-            role="tooltip"
-            className="pointer-events-none invisible absolute left-0 top-full z-50 mt-2 w-72 whitespace-pre-wrap rounded-md border border-amber-500/50 bg-neutral-900 px-3 py-2 text-xs font-normal text-neutral-200 opacity-0 shadow-xl transition-opacity group-hover:visible group-hover:opacity-100"
-          >
-            <span className="mb-1 block font-semibold text-amber-400">Block deleted from the simulation</span>
-            “{item.name}” was removed from Block Customization in the selected simulation. This prompt still runs with the copy saved here:
-            {'\n\n'}
-            <span className="text-neutral-400">{describeBlock(item) || '(empty)'}</span>
-            {'\n\n'}
-            Remove this block, or re-add a block named “{item.name}” in the Simulation Toolkit to link it again.
-          </span>
-        </span>
-      )}
-      {item.name}
-      {options.length > 1 && (
-        <span
-          title={`One of these ${options.length} options is picked at random for each experiment.`}
-          className="rounded-full bg-neutral-900/15 px-1.5 text-[11px] leading-4"
-        >
-          {options.length}
-        </span>
-      )}
+      {item.name} (legacy block)
     </div>
   )
 }
@@ -609,34 +464,6 @@ function RuleItemEditor({ item }: { item: RulePromptItem }) {
     >
       {RULE_OPTIONS.map(option => (
         <option key={option} value={option} title={RULE_DESCRIPTIONS[option]}>{RULE_TITLES[option]}</option>
-      ))}
-    </select>
-  )
-}
-
-function PromptOutputItemEditor({ item }: { item: PromptOutputPromptItem }) {
-  const { updateItem, promptOutputOptions } = useEditorCtx()
-  const label = promptOutputOptions.find(opt => opt.id === item.promptId)?.label ?? item.promptId
-
-  if (promptOutputOptions.length === 0) {
-    return (
-      <div className="cursor-default rounded bg-[#e0d8f9] px-3 py-1.5 text-sm font-medium text-neutral-900">
-        Output: {label}
-      </div>
-    )
-  }
-
-  return (
-    <select
-      value={item.promptId}
-      onChange={e => updateItem(item, { promptId: e.target.value })}
-      className="rounded bg-[#e0d8f9] px-3 py-1.5 text-sm font-medium text-neutral-900 cursor-pointer focus:outline-none"
-    >
-      {!promptOutputOptions.some(opt => opt.id === item.promptId) && (
-        <option value={item.promptId}>Output: {label}</option>
-      )}
-      {promptOutputOptions.map(opt => (
-        <option key={opt.id} value={opt.id}>Output: {opt.label}</option>
       ))}
     </select>
   )
@@ -736,20 +563,6 @@ function ItemEditor({ item }: { item: PromptItem }) {
           Initialization Result
         </div>
       )
-    case PromptItemType.CHARACTER_CONTEXT:
-      return (
-        <div className="cursor-default rounded bg-[#f9e0d8] px-3 py-1.5 text-sm font-medium text-neutral-900">
-          Character
-        </div>
-      )
-    case PromptItemType.THOUGHT_HISTORY_CONTEXT:
-      return (
-        <div className="cursor-default rounded bg-[#d8f0f9] px-3 py-1.5 text-sm font-medium text-neutral-900">
-          Thought History
-        </div>
-      )
-    case PromptItemType.PROMPT_OUTPUT:
-      return <PromptOutputItemEditor item={item as PromptOutputPromptItem} />
     case PromptItemType.BIASED:
       return (
         <div className="cursor-default rounded bg-[#f08673] px-3 py-1.5 text-sm font-medium text-neutral-900">
@@ -757,7 +570,7 @@ function ItemEditor({ item }: { item: PromptItem }) {
         </div>
       )
     case PromptItemType.BLOCK:
-      return <BlockItemEditor item={item as BlockPromptItem} />
+      return <LegacyBlockItemEditor item={item as LegacyBlockPromptItem} />
     default:
       return null
   }
@@ -873,29 +686,7 @@ export interface StructuredPromptEditorProps {
   label?: string
   locked?: boolean
   textOnly?: boolean
-  /** Blocks of the selected simulation, offered under "Add item". */
-  blocks?: Block[]
-  /** Whether `blocks` has loaded; enables the deleted-block warning even when it is empty. */
-  blocksLoaded?: boolean
   assistantMode?: AssistantMode
-  // Gates the "Initialization Result" block; omit to keep it always offered
-  // (existing callers), pass false where initialization is an optional,
-  // toggleable feature and it should only appear once enabled.
-  showInitializationContext?: boolean
-  showCharacterContext?: boolean
-  showThoughtHistoryContext?: boolean
-  // Named prompts (with a strictly earlier order) whose output can be pulled
-  // in via a "Prompt Output" block.
-  promptOutputOptions?: { id: string; label: string }[]
-  // Hides the debate-flavored blocks (Debate Topic/Statement, Participant
-  // Initial Positions, Target Position) and the other-participant blocks
-  // (Participant Info, Participant Chat Input) — none of which apply to the
-  // Agent Participant toolkit.
-  hideDebateAndParticipantBlocks?: boolean
-  // Offers the Simulation Toolkit's blocks under "Add item". Off for pages
-  // whose runs never send a simulation (the Reddit assistant), where a block
-  // could only ever run from its stored copy.
-  showSimulationBlocks?: boolean
   // Hides only the debate items (Debate Topic, Debate Statement, Target
   // Position, Participant Initial Positions), for editors not meant for
   // debates; the participant blocks stay.
@@ -911,55 +702,18 @@ export function StructuredPromptEditor({
   label = 'Prompt editor',
   locked = false,
   textOnly = false,
-  blocks = [],
-  blocksLoaded,
   assistantMode,
-  showInitializationContext,
-  showCharacterContext,
-  showThoughtHistoryContext,
-  promptOutputOptions = [],
-  hideDebateAndParticipantBlocks,
-  showSimulationBlocks,
   hideDebateItems,
   showParticipantProfiles,
 }: StructuredPromptEditorProps) {
-  // A block item carries a copy of its descriptions so the exported template runs
-  // without the simulation. Re-editing the block in the Simulation Toolkit would
-  // leave that copy behind, so refresh it whenever the two drift apart. The copy
-  // is rewritten as a list even when it was saved as a single string, which is
-  // what retires the old shape from saved templates.
-  useEffect(() => {
-    if (locked || blocks.length === 0) return
-    let changed = false
-    const synced = prompt.map(item => {
-      if (item.type !== PromptItemType.BLOCK) return item
-      const block = item as BlockPromptItem
-      const live = blocks.find(b => b.name === block.name)
-      if (!live) return item
-      const liveDescriptions = blockDescriptions(live)
-      const copied = blockDescriptions(block)
-      if (Array.isArray(block.descriptions)
-        && liveDescriptions.length === copied.length
-        && liveDescriptions.every((d, i) => d === copied[i])) return item
-      changed = true
-      const rest = { ...block } as BlockPromptItem & { description?: string }
-      delete rest.description
-      return { ...rest, descriptions: liveDescriptions }
-    })
-    if (changed) onUpdate(synced)
-  }, [prompt, blocks, locked, onUpdate])
-
   const ctx: EditorCtx = {
     assistantMode,
     locked,
-    blocks,
-    blocksLoaded,
     updateItem: (item, updates) => onUpdate(treeUpdateItem(prompt, item, updates)),
     addItem: (targetArr, newItem) => onUpdate(treeAddTo(prompt, targetArr, newItem)),
     deleteItem: (targetArr, index) => onUpdate(treeRemoveFrom(prompt, targetArr, index)),
     moveItem: (targetArr, index, dir) => onUpdate(treeMoveIn(prompt, targetArr, index, dir)),
     reorderItem: (targetArr, from, to) => onUpdate(treeReorder(prompt, targetArr, from, to)),
-    promptOutputOptions,
   }
 
   return (
@@ -970,13 +724,7 @@ export function StructuredPromptEditor({
           <AddMenu
             targetArr={prompt}
             textOnly={textOnly}
-            blocks={blocks}
             assistantMode={assistantMode}
-            showInitializationContext={showInitializationContext}
-            showCharacterContext={showCharacterContext}
-            showThoughtHistoryContext={showThoughtHistoryContext}
-            hideDebateAndParticipantBlocks={hideDebateAndParticipantBlocks}
-            showSimulationBlocks={showSimulationBlocks}
             hideDebateItems={hideDebateItems}
             showParticipantProfiles={showParticipantProfiles}
           />

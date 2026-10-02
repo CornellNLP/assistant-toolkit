@@ -22,74 +22,6 @@ export function substituteTokens(obj: any, subs: Record<string, string>): any {
   return obj
 }
 
-/**
- * Reads a block's alternative descriptions off either shape it is saved in: a
- * `descriptions` list, or the single `description` string used before a block
- * could hold several options.
- */
-export function blockDescriptions(raw: unknown): string[] {
-  const b = raw as { descriptions?: unknown; description?: unknown } | null
-  const list = Array.isArray(b?.descriptions)
-    ? b!.descriptions
-    : b?.description != null ? [b.description] : []
-  return list.map((d: unknown) => String(d ?? ''))
-}
-
-/**
- * Draws the description one block contributes to this experiment.
- *
- * A block may offer several alternatives, and exactly one of them is used —
- * every place that block appears in the experiment (the chat stage description,
- * the mediator prompt, every agent prompt in every cohort) has to agree, or the
- * conversation describes itself two different ways. `choices` is that agreement:
- * one map per `generate()` call, holding the first draw made for each name.
- */
-export function pickBlockDescription(
-  name: string,
-  descriptions: string[],
-  choices: Map<string, string>,
-): string {
-  const cached = choices.get(name)
-  if (cached !== undefined) return cached
-  const options = descriptions.filter((d) => d.trim() !== '')
-  const chosen = options.length > 0 ? options[Math.floor(Math.random() * options.length)] : ''
-  choices.set(name, chosen)
-  return chosen
-}
-
-/**
- * Rewrites every `BLOCK` prompt item into the plain `TEXT` item the backend
- * expects, in place of the block authored in the simulation toolkit.
- *
- * A block item carries both the `name` it refers to and a copy of the
- * `descriptions` it had when it was added. The live simulation wins when it
- * still defines that name, so editing a block there updates every prompt
- * referencing it; the copy is the fallback for runs that send no simulation at
- * all (a mediator-toolkit run, or an exported template run on its own).
- *
- * Walking the whole template rather than each prompt array covers the response,
- * should-respond, initialization and survey prompts in one pass.
- */
-export function resolveBlockItems(
-  obj: any,
-  blocks: { name: string; descriptions: string[] }[] = [],
-  choices: Map<string, string> = new Map(),
-): any {
-  if (Array.isArray(obj)) return obj.map((x) => resolveBlockItems(x, blocks, choices))
-  if (obj && typeof obj === 'object') {
-    if (obj.type === 'BLOCK') {
-      const name = String(obj.name ?? '')
-      const live = blocks.find((b) => b.name === name)
-      const description = pickBlockDescription(name, blockDescriptions(live ?? obj), choices)
-      return { ...obj, type: 'TEXT', text: description ? `${name}: ${description}` : name }
-    }
-    const out: Record<string, any> = {}
-    for (const [k, v] of Object.entries(obj)) out[k] = resolveBlockItems(v, blocks, choices)
-    return out
-  }
-  return obj
-}
-
 // replace missing values by defaults
 export function replaceDefaults(template: Record<string, any>, defaults: Record<string, any>): Record<string, any> {
   const merged: Record<string, any> = { ...defaults }
@@ -156,8 +88,8 @@ export function fillAgentStance(
   return [agentTemplate, agentStance]
 }
 
-// The topic lines a mediator or assistant prompt may carry. A simulation-toolkit
-// run has no debate topic (it passes null), so the tokens are blanked there.
+// The topic lines a mediator or assistant prompt may carry; blanked when there
+// is no topic.
 export function topicTokens(topicInfo: Record<string, any> | null): Record<string, string> {
   if (!topicInfo) return { '{topic_name}': '', '{topic_statement}': '' }
   return { '{topic_name}': `Debate Topic: ${topicInfo.name}`, '{topic_statement}': `Debate Statement: ${topicInfo.statement}` }
@@ -173,31 +105,6 @@ function postSubstitutions(postTitle?: string, postDescription?: string, redditR
   }
 }
 
-/**
- * Fills an agent for a simulation-toolkit run, which is a conversation rather
- * than a debate: there is no statement to take a side on, so no stance is drawn
- * and nothing concedes. Leftover topic and stance tokens in a prompt written for
- * the debate toolkit are blanked rather than left in the text verbatim.
- */
-export function fillAgentWithoutStance(
-  agentTemplate: Record<string, any>,
-  postTitle?: string,
-  postDescription?: string,
-  redditRole?: string,
-): Record<string, any> {
-  agentTemplate["concede_strength"] = null
-  substituteAgentTokens(agentTemplate, {
-    '{topic_name}': '',
-    '{statement}': '',
-    '{stance_label}': '',
-    '{stance_action}': '',
-    '{stance_strength}': '',
-    '{stance_strength_raw}': '',
-    ...postSubstitutions(postTitle, postDescription, redditRole),
-  })
-  return agentTemplate
-}
-
 function substituteAgentTokens(agentTemplate: Record<string, any>, substitutions: Record<string, string>): void {
   const substituteInBlocks = (items: any[] | undefined) => {
     for (const item of items ?? []) {
@@ -210,17 +117,6 @@ function substituteAgentTokens(agentTemplate: Record<string, any>, substitutions
   }
 
   substituteInBlocks(agentTemplate.prompt)
-
-  // New (order/promptOutput) schema: named prompts live under chatSettings.promptMap,
-  // plus the separate optional initializationPrompt/thoughtPrompt/characterPrompt block lists.
-  if (agentTemplate.chatSettings?.promptMap) {
-    for (const entry of Object.values(agentTemplate.chatSettings.promptMap) as any[]) {
-      substituteInBlocks(entry?.prompt)
-    }
-    substituteInBlocks(agentTemplate.chatSettings.initializationPrompt)
-    substituteInBlocks(agentTemplate.chatSettings.thoughtPrompt)
-    substituteInBlocks(agentTemplate.chatSettings.characterPrompt)
-  }
 
   for (const key of ['human_style_prompt', 'should_concede_prompt', 'thought_prompt', 'post_survey_prompt', 'pre_survey_prompt', 'agent_config']) {
     if (key in agentTemplate) {

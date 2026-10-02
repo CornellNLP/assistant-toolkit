@@ -9,7 +9,6 @@ import * as yaml from 'js-yaml'
 import { StructuredPromptEditor, type PromptItem } from '../components/StructuredPromptEditor'
 import { ActionButton, ResultBox, type ActionState } from '../components/ExperimentActions'
 import { MediatorSection } from '../components/MediatorSection'
-import { Nav } from '../components/Nav'
 import { SaveSection } from '../components/SaveSection'
 import { YamlIOSection } from '../components/YamlIOSection'
 import { readDraft, writeDraft } from '../lib/drafts'
@@ -26,8 +25,6 @@ function PromptEditorDescription({ description }: { description: string }) {
   )
 }
 
-// Reddit runs send no simulation, so the Simulation Toolkit's blocks are not
-// offered here: they could only ever run from the copy an item carries.
 function PromptBlockLegend() {
   const legend = (bg: string, label: string, dim = false) => (
     <span className={`inline-block rounded px-1.5 py-0.5 font-medium whitespace-nowrap justify-self-start ${dim ? 'bg-neutral-800 text-neutral-500' : `text-neutral-900 ${bg}`}`}>{label}</span>
@@ -385,10 +382,10 @@ export default function AssistantPage() {
   )
 
   return (
-    <div className="flex flex-col lg:flex-row lg:h-screen lg:overflow-hidden bg-neutral-950 text-neutral-100">
+    <div className="flex flex-col lg:flex-row bg-neutral-950 text-neutral-100">
 
       {/* Left column — prompt editor */}
-      <div className="lg:flex-3 lg:overflow-y-auto p-8">
+      <div className="lg:flex-3 lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto lg:min-h-0 p-8">
         <div className="w-full space-y-5">
 
           {/* Header */}
@@ -452,7 +449,6 @@ export default function AssistantPage() {
                       stageId=""
                       onUpdate={updateAssistantPrompt}
                       assistantMode="reddit"
-                      showSimulationBlocks={false}
                     />
                   </div>
                 ) : (
@@ -465,7 +461,6 @@ export default function AssistantPage() {
                       stageId=""
                       onUpdate={updateShouldRespondPrompt}
                       assistantMode="reddit"
-                      showSimulationBlocks={false}
                     />
                   </div>
                 )}
@@ -491,7 +486,7 @@ export default function AssistantPage() {
       </div>
 
       {/* Right column — testing & simulation */}
-      <div className="lg:flex-1 lg:overflow-y-auto p-8 space-y-6 border-t border-neutral-800 lg:border-t-0 lg:border-l">
+      <div className="lg:flex-1 lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto lg:min-h-0 p-8 space-y-6 border-t border-neutral-800 lg:border-t-0 lg:border-l">
         <YamlIOSection label="Assistant" filename="assistant.yaml" data={assistantData} setData={setAssistantData} />
         <div className="space-y-3">
           <div className="border-b border-neutral-800 pb-3 mb-3">

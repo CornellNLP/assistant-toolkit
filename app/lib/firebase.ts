@@ -7,14 +7,15 @@ import { getFirestore } from 'firebase/firestore'
 
 // Your web app's Firebase configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
-const firebaseConfig =  {
- apiKey: "AIzaSyBRkYfri2Uy3qdy3emGHHKz6qpDU8fO_1w",
- authDomain: "convoarena-assistant.firebaseapp.com",
- projectId: "convoarena-assistant",
- storageBucket: "convoarena-assistant.firebasestorage.app",
- messagingSenderId: "173430569358",
- appId: "1:173430569358:web:304ef1b6d9fc912b2fccdf",
- measurementId: "G-5RDYQ4QMB2"
+const firebaseConfig = {
+ apiKey: "AIzaSyCJ8Tg39Q7e7765GEC_QtjeuUs9U1pHgsI",
+ authDomain: "traust-491612.firebaseapp.com",
+ databaseURL: "https://traust-491612-default-rtdb.firebaseio.com",
+ projectId: "traust-491612",
+ storageBucket: "traust-491612.firebasestorage.app",
+ messagingSenderId: "982548588385",
+ appId: "1:982548588385:web:ddca77bbcf01ea8c184720",
+ measurementId: "G-GMHWWLDEBL"
 };
 
 

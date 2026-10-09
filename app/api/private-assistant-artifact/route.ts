@@ -11,12 +11,15 @@ export async function POST() {
   try {
     const chosen = TOPICS[Math.floor(Math.random() * TOPICS.length)]
     const experimentTemplatePath = path.join(process.cwd(), 'public', 'templates', 'topics', chosen, 'experiment.yaml')
-    const mediatorTemplate = fs.readFileSync( "public/templates/competition/mediator.yaml", 'utf8')
+    const privateAssistantTemplate = fs.readFileSync(path.join(process.cwd(), 'public', 'templates', 'artifacts', 'assistant.yaml'), 'utf8')
 
-    const result = await generate('participant-1', 'participant-2', experimentTemplatePath, mediatorTemplate, 'human-agent')
+    // no mediator; the assistant stands behind the human seat (participant-1 in human-agent mode)
+    const result = await generate('participant-1', 'participant-2', experimentTemplatePath, null, 'human-agent',
+      undefined, undefined, undefined, privateAssistantTemplate, undefined, undefined, 'participant-1',
+      undefined, undefined, { publicNameSuffix: ' - Private Assistant Example' })
     return Response.json(result, { headers: CORS_HEADERS })
   } catch (e) {
-    console.error('Error in website-artifact:', e)
+    console.error('Error:', e)
     return Response.json({ error: String(e) }, { status: 500, headers: CORS_HEADERS })
   }
 }

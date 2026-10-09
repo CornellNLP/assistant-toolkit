@@ -37,6 +37,8 @@ export function buildStages(experimentTemplate: Record<string, any>, topicInfo: 
 export type CohortFlags = {
   publicizeAssistantMessages?: boolean
   allowPublicMessageDeletion?: boolean
+  // appended to the participant-facing experiment name
+  publicNameSuffix?: string
 }
 
 export function buildExperiment(
@@ -107,7 +109,7 @@ export function buildExperiment(
       versionId: 0,
       metadata: {
         name: `[${mode}] ${alias}`,
-        publicName: meta.publicName ?? `${topicInfo.name} debate`,
+        publicName: `${meta.publicName ?? `${topicInfo.name} debate`}${cohortFlags.publicNameSuffix ?? ''}`,
         description: meta.description ?? '',
         tags: meta.tags ?? ['toolkit'],
       },

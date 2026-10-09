@@ -90,6 +90,15 @@ convokit-service/      Python FastAPI service that converts experiments to Convo
 
 ## Getting started
 
+Create the two per-deployment config files from their examples and fill in your Firebase project's values (both files are gitignored):
+
+```bash
+cp app/lib/firebase.example.ts app/lib/firebase.ts
+cp app/api/create-experiment/config.example.ts app/api/create-experiment/config.ts
+```
+
+`FIREBASE_SERVICE_ACCOUNT` in `.env` must be for the same project as `app/lib/firebase.ts`; the server refuses to start otherwise.
+
 Install dependencies and start the dev server:
 
 ```bash
@@ -103,7 +112,7 @@ In development (`npm run dev`), experiments are created on a **local ConvoArena 
 
 `npm run dev` first runs `scripts/sync-dl-key.mjs`. That script copies `DL_API_KEY` from a sibling `../TrAuSt/.env` checkout into this repo's `.env`, so that the dev server uses the key minted by the locally running backend. Set `DL_ENV_PATH` to point the script at a different `.env` file.
 
-The local URL includes the emulator's Firebase project id, which defaults to `convoarena-assistant`. If your emulator runs a different project, set `DL_EMULATOR_PROJECT` to match: for a TrAuSt checkout, that's `traust-491612` (see its `.firebaserc`). Otherwise every create request fails with `create_experiment failed: Not Found` or `create_simulation failed: Not Found`.
+If you're using a local version of ConvoArena, set the project id in the local URLs in `app/api/create-experiment/config.ts` to the project in its `.firebaserc`. Otherwise every create request fails with `create_experiment failed: Not Found` or `create_simulation failed: Not Found`.
 
 ### Environment variables
 
@@ -112,7 +121,6 @@ The local URL includes the emulator's Firebase project id, which defaults to `co
 | `DL_API_KEY` | API key for the ConvoArena / Deliberate Labs backend |
 | `FIREBASE_SERVICE_ACCOUNT` | Firebase Admin service-account JSON (server-side auth, quota checks, saved templates). Required: without it, the server routes fail as soon as they load. |
 | `CONVOKIT_SERVICE_URL` | URL of the ConvoKit service (defaults to `http://127.0.0.1:8080`) |
-| `DL_EMULATOR_PROJECT` | Optional, development only: Firebase project id of the local ConvoArena emulator (default `convoarena-assistant`) |
 | `DL_ENV_PATH` | Optional: alternate `.env` file for `sync-dl-key.mjs` to read from |
 
 Write each entry as `NAME=value`. A line like `DL_API_KEY:value` is silently ignored, and the key ends up empty. `.env` is gitignored; never commit it.

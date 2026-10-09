@@ -12,11 +12,13 @@ export async function POST() {
     const chosen = TOPICS[Math.floor(Math.random() * TOPICS.length)]
     const experimentTemplatePath = path.join(process.cwd(), 'public', 'templates', 'topics', chosen, 'experiment.yaml')
     const privateAssistantTemplate = fs.readFileSync(path.join(process.cwd(), 'public', 'templates', 'artifacts', 'assistant.yaml'), 'utf8')
+    // the default experiment minus the mediator survey questions, since this run has no mediator
+    const baseTemplatePath = path.join(process.cwd(), 'public', 'templates', 'artifacts', 'experiment-assistant.yaml')
 
     // no mediator; the assistant stands behind the human seat (participant-1 in human-agent mode)
     const result = await generate('participant-1', 'participant-2', experimentTemplatePath, null, 'human-agent',
       undefined, undefined, undefined, privateAssistantTemplate, undefined, undefined, 'participant-1',
-      undefined, undefined, { publicNameSuffix: ' - Private Assistant Example' })
+      undefined, undefined, { publicNameSuffix: ' - Private Assistant Example' }, baseTemplatePath)
     return Response.json(result, { headers: CORS_HEADERS })
   } catch (e) {
     console.error('Error:', e)

@@ -6,7 +6,6 @@ import { signInWithPopup } from 'firebase/auth'
 import { doc, getDoc, setDoc } from 'firebase/firestore'
 import { auth, db, googleProvider } from '../../lib/firebase'
 
-// TODO: replace with the real competition bracket/results link
 const RESULTS_URL = 'https://traust.infosci.cornell.edu/bracket.html'
 // TODO: replace with the interest form used on the site's "Contact" tab
 const NOTIFY_FORM_URL = 'https://docs.google.com/forms/d/e/1FAIpQLSeO5WBoxy79WUFZmPL08vA24Huuoam71VDBMc9WUuMlPWpWYw/viewform'

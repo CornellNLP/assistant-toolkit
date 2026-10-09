@@ -73,10 +73,12 @@ export async function generate(p1: string, p2: string, experimentTemplatePath: s
                           agentAssignment?: 'participant-1' | 'participant-2' | 'both', templateSet?: 'reddit' | 'wikipedia',
                           opParticipant?: 'participant-1' | 'participant-2',
                           // Experiment-wide chat settings from the request.
-                          requestFlags: CohortFlags = {}) {
+                          requestFlags: CohortFlags = {},
+                          // The template the experiment template is layered over, e.g. to swap in a different survey.
+                          baseTemplatePath: string = EXPERIMENT_DEFAULT) {
   const experimentTemplate = replaceDefaults(
     loadTemplate(experimentTemplatePath),
-    loadTemplate(EXPERIMENT_DEFAULT),
+    loadTemplate(baseTemplatePath),
   )
   const topicInfo = buildTopic(experimentTemplate.topic)
 

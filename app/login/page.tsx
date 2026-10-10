@@ -10,7 +10,7 @@ import { auth, db, googleProvider } from '../lib/firebase'
 // The toolkits a signed-in user can open. Each is independent, with no links
 // to the others, so this hub is the only place they are listed together.
 const TOOLKITS = [
-  { href: '/mediator', label: 'Public Assistant', description: 'Build and test public assistant prompts.' },
+  { href: '/mediator', label: 'Public Assistant', description: 'Build and test public assistant (a.k.a. mediator) prompts.' },
   { href: '/assistant-reddit', label: 'Private Assistant - Reddit', description: 'Private assistants for ChangeMyView-style Reddit threads.' },
   { href: '/assistant-wp', label: 'Private Assistant - WP', description: 'Private assistants for Wikipedia article discussions.' },
 ] as const

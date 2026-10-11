@@ -90,6 +90,8 @@ convokit-service/      Python FastAPI service that converts experiments to Convo
 
 ## Getting started
 
+You need a Firebase project with **Authentication** (Google sign-in) and **Firestore** enabled. This app doesn't ship its own Firestore rules; it assumes the project uses [ConvoArena](https://github.com/CornellNLP/ConvoArena)'s [`firestore.rules`](https://github.com/CornellNLP/ConvoArena/blob/main/firestore/firestore.rules) (typically the same Firebase project ConvoArena runs on).
+
 Create the two per-deployment config files from their examples and fill in your Firebase project's values (both files are gitignored):
 
 ```bash
